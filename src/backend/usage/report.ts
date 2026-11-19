@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import type { Db } from "@/infrastructure/db/client";
-import { agents, budgets, businesses, executionRuns, modelUsage } from "@/infrastructure/db/schema";
-import { monthStart } from "../budgets/spend-guard";
+import { agents, budgets, businesses, executionRuns, modelUsage, sectors } from "@/infrastructure/db/schema";
+import { budgetScopeFilter, monthStart } from "../budgets/spend-guard";
 
 /**
  * API USAGE & SPENDING REPORT - built only from recorded model_usage rows
@@ -93,9 +93,10 @@ export async function getUsageReport(db: Db, organizationId: string, now: Date =
       .where(thisMonth)
       .groupBy(businesses.slug, businesses.name),
     db
-      .select({ name: businesses.name, businessId: budgets.businessId, limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
+      .select({ name: businesses.name, sectorName: sectors.name, businessId: budgets.businessId, sectorId: budgets.sectorId, limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
       .from(budgets)
       .leftJoin(businesses, eq(businesses.id, budgets.businessId))
+      .leftJoin(sectors, eq(sectors.id, budgets.sectorId))
       .where(and(eq(budgets.organizationId, organizationId), eq(budgets.periodStart, monthStart(now)))),
     db
       .select({
@@ -143,7 +144,11 @@ export async function getUsageReport(db: Db, organizationId: string, now: Date =
     byModel: breakdown(byModel),
     byBusiness: breakdown(byBusiness),
     budgets: budgetRows
-      .map((b) => ({ scope: b.businessId === null ? "Organization" : (b.name ?? "Business"), limitMicros: b.limitMicros, spentMicros: b.spentMicros }))
+      .map((b) => ({
+        scope: b.businessId ? (b.name ?? "Business") : b.sectorId ? `${b.sectorName ?? "Sector"} (sector)` : "Organization",
+        limitMicros: b.limitMicros,
+        spentMicros: b.spentMicros,
+      }))
       .sort((a, b) => (a.scope === "Organization" ? -1 : b.scope === "Organization" ? 1 : a.scope.localeCompare(b.scope))),
     recent: recent.map((r) => ({ ...r, at: r.at.toISOString() })),
   };
@@ -154,6 +159,6 @@ export async function getOrgBudget(db: Db, organizationId: string, now = new Dat
   const [b] = await db
     .select({ limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
     .from(budgets)
-    .where(and(eq(budgets.organizationId, organizationId), isNull(budgets.businessId), eq(budgets.periodStart, monthStart(now))));
+    .where(budgetScopeFilter(organizationId, "organization", monthStart(now)));
   return b ?? null;
 }

@@ -13,6 +13,8 @@ export interface AgentOption {
   id: string;
   label: string;
   capability: "plans-objectives" | "runs-research" | "tracked-only";
+  /** Sector agents: pick which business of the sector the work is for. */
+  businesses?: { id: string; name: string }[];
 }
 
 const HINT: Record<AgentOption["capability"], string> = {
@@ -85,6 +87,28 @@ export function AssignmentForm({
         />
         {selected && <p className="mt-1 text-xs text-slate-400">{HINT[selected.capability]}</p>}
       </div>
+      {selected?.businesses && (
+        <div>
+          <label htmlFor="businessId" className="block text-sm font-medium text-slate-200">
+            For which business
+          </label>
+          <select
+            key={selected.id}
+            id="businessId"
+            name="businessId"
+            required
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none sm:w-1/2"
+          >
+            {selected.businesses.length === 0 && <option value="">No businesses in this sector yet</option>}
+            {selected.businesses.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">Sector agents work across their sector, one business per assignment.</p>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"

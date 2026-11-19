@@ -30,7 +30,7 @@ export const DEFAULT_MODEL: Record<ProviderId, string> = {
 
 export function workTypeFor(agent: Pick<AgentRow, "role">, permissions: ReadonlySet<string>): WorkType {
   if (permissions.has("research.web_search") || permissions.has("research.web_fetch")) return "research";
-  if (agent.role === "chief-ai-manager" || agent.role === "central-project-manager") return "strategy";
+  if (agent.role === "chief-ai-manager" || agent.role === "central-project-manager" || agent.role === "sector-manager") return "strategy";
   return "engineering";
 }
 

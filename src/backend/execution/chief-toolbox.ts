@@ -148,11 +148,11 @@ export class ChiefToolbox implements ChiefToolboxContract {
       }
       case "get_budget_status": {
         const rows = await this.db
-          .select({ businessId: budgets.businessId, limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
+          .select({ businessId: budgets.businessId, sectorId: budgets.sectorId, limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
           .from(budgets)
           .where(and(eq(budgets.organizationId, org), eq(budgets.periodStart, monthStart(this.scope.now()))));
         const usd = (m: number) => Math.round(m / 10_000) / 100;
-        return ok(rows.map((b) => ({ scope: b.businessId ?? "organization", limitUsd: usd(b.limitMicros), spentUsd: usd(b.spentMicros) })), `${rows.length} budgets`);
+        return ok(rows.map((b) => ({ scope: b.businessId ? `business:${b.businessId}` : b.sectorId ? `sector:${b.sectorId}` : "organization", limitUsd: usd(b.limitMicros), spentUsd: usd(b.spentMicros) })), `${rows.length} budgets`);
       }
     }
     return fail("Unknown read tool.");

@@ -23,7 +23,8 @@
     "budget:set": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/set-budget.ts",
     "worker": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/worker.ts",
     "test:e2e": "RUN_LIVE_E2E=true node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs --test src/backend/execution/research-worker.e2e.test.ts",
-    "test:providers": "RUN_LIVE_PROVIDER_TESTS=true node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs --test --test-concurrency=1 src/backend/models/providers.e2e.test.ts"
+    "test:providers": "RUN_LIVE_PROVIDER_TESTS=true node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs --test --test-concurrency=1 src/backend/models/providers.e2e.test.ts",
+    "org:provision": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/provision.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.5.0",

@@ -113,7 +113,7 @@ export class ResearchWorker {
       // ---- run the agent ---------------------------------------------------------
       spend = new SpendGuard(
         db,
-        { organizationId: task.organizationId, businessId: task.businessId, agentId: agent.id, runId: run.id, provider: assigned.provider, maxRunMicros: config.maxRunMicros },
+        { organizationId: task.organizationId, businessId: task.businessId, sectorId: business?.sectorId ?? null, agentId: agent.id, runId: run.id, provider: assigned.provider, maxRunMicros: config.maxRunMicros },
         this.now,
       );
       const guard = spend;

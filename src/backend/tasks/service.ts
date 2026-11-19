@@ -1,9 +1,10 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { TASK_ACTIONS, TASK_STATES, availableActions, type TaskAction, type TaskState } from "@/domain/task-lifecycle";
 import type { Db } from "@/infrastructure/db/client";
-import { agents, approvalRequests, auditLogs, executionEvents, executionRuns, knowledgeDocuments, modelUsage, projects, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { agents, approvalRequests, auditLogs, businesses, executionEvents, executionRuns, knowledgeDocuments, modelUsage, projects, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { canAccessBusiness, type ApiScope, type RequestContext } from "../auth/context";
 import { writeAudit } from "../audit";
+import { canTaskJoinProject } from "../org/rules";
 import { appendEvent, latestRun } from "../execution/events";
 import { ServiceError, UUID, assertUuid } from "../errors";
 import { findSecrets } from "../knowledge/secrets";
@@ -92,11 +93,16 @@ export class TaskService {
     const now = this.now();
 
     return this.db.transaction(async (tx) => {
+      const [business] = v.businessId ? await tx.select().from(businesses).where(eq(businesses.id, v.businessId)) : [];
+      if (v.businessId && (!business || business.organizationId !== ctx.organizationId)) throw new ServiceError("invalid-input", "Business not found.");
+      if (business?.status === "archived") throw new ServiceError("conflict", `${business.name} is archived and takes no new work.`, "business-archived");
       if (v.projectId) {
         const [project] = await tx.select().from(projects).where(eq(projects.id, v.projectId));
-        if (!project || project.organizationId !== ctx.organizationId || project.businessId !== v.businessId) {
-          throw new ServiceError("invalid-input", "Project not found in that business.");
-        }
+        if (!project || project.organizationId !== ctx.organizationId) throw new ServiceError("invalid-input", "Project not found.");
+        // Cross-sector rules: business projects take their business's tasks, sector projects
+        // their sector's, headquarters projects any business.
+        const rule = canTaskJoinProject(project, business ?? null);
+        if (!rule.ok) throw new ServiceError("invalid-input", rule.message, rule.code);
       }
       if (v.dependsOn.length > 0) {
         const deps = await tx

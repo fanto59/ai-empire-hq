@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@/infrastructure/db/client";
 import { agentPermissions, agents, budgets, businesses, departments, knowledgeDocuments, organizations, projects, sectors } from "@/infrastructure/db/schema";
 import { ownerRequestContext } from "../auth/context";
+import { provisionInitialStructure } from "../org/structure";
 import { TaskService, type TransitionRequest } from "../tasks/service";
 
 /**
@@ -26,15 +27,16 @@ export async function seedTestData(db: Db, now: () => Date = () => new Date()): 
 
   const [org] = await db.insert(organizations).values({ slug: TEST_ORG_SLUG, name: "Test Organization", isTestData: true }).returning();
   const orgId = org!.id;
-  const [sector] = await db
-    .insert(sectors)
-    .values({ organizationId: orgId, slug: "test-research", name: "Test Research Sector", description: "Fictional sector for development." })
-    .returning();
+  // The owner's initial structure: six sectors, the four distinct Nightlife &
+  // Entertainment businesses (planning, no tasks) and one manager per sector.
+  await provisionInitialStructure(db, orgId, now());
+  const sectorId = async (slug: string) => (await db.select().from(sectors).where(and(eq(sectors.organizationId, orgId), eq(sectors.slug, slug))))[0]!.id;
+  // Two fictional TEST businesses used by the development data below.
   const [bizA, bizB] = await db
     .insert(businesses)
     .values([
-      { organizationId: orgId, sectorId: sector!.id, slug: "test-business-a", name: "Test Business A", status: "active" },
-      { organizationId: orgId, sectorId: sector!.id, slug: "test-business-b", name: "Test Business B", status: "planning" },
+      { organizationId: orgId, sectorId: await sectorId("business-development"), slug: "test-business-a", name: "Test Business A", status: "active" },
+      { organizationId: orgId, sectorId: await sectorId("shared-services"), slug: "test-business-b", name: "Test Business B", status: "planning" },
     ])
     .returning();
   const [dept] = await db.insert(departments).values({ businessId: bizA!.id, slug: "research", name: "Research" }).returning();

@@ -17,7 +17,12 @@ export async function assignWorkAction(_prev: AssignmentFormState, form: FormDat
     const r = await assignWork(
       db,
       ctx,
-      { agentId: String(form.get("agentId") ?? ""), instructions: String(form.get("instructions") ?? ""), title: String(form.get("title") ?? "") || undefined },
+      {
+        agentId: String(form.get("agentId") ?? ""),
+        instructions: String(form.get("instructions") ?? ""),
+        title: String(form.get("title") ?? "") || undefined,
+        businessId: String(form.get("businessId") ?? "") || undefined,
+      },
       String(form.get("idempotencyKey") ?? "") || `assign-${randomUUID()}`,
     );
     revalidatePath("/agents");

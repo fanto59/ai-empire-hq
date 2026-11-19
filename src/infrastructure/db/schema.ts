@@ -36,7 +36,7 @@ const updatedAt = () => timestamp("updated_at", { withTimezone: true }).notNull(
 // ---- enums -------------------------------------------------------------------
 
 export const businessStatus = pgEnum("business_status", ["planning", "active", "paused", "archived"]);
-export const agentRole = pgEnum("agent_role", ["chief-ai-manager", "central-project-manager", "business-lead", "specialist"]);
+export const agentRole = pgEnum("agent_role", ["chief-ai-manager", "central-project-manager", "business-lead", "specialist", "sector-manager"]);
 export const agentStatus = pgEnum("agent_status", ["draft", "active", "disabled", "retired"]);
 export const agentPermission = pgEnum("agent_permission", [
   "task.read",
@@ -84,6 +84,8 @@ export const sectors = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
+    /** Display order on the sector directory. */
+    position: integer("position").notNull().default(0),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("sectors_org_slug_uq").on(t.organizationId, t.slug)],
@@ -97,11 +99,18 @@ export const businesses = pgTable(
     sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "set null" }),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
+    description: text("description").notNull().default(""),
     status: businessStatus("status").notNull().default("planning"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("businesses_org_slug_uq").on(t.organizationId, t.slug)],
+  (t) => [
+    uniqueIndex("businesses_org_slug_uq").on(t.organizationId, t.slug),
+    // Businesses must stay distinct: no two with the same name (any case) in one organization.
+    uniqueIndex("businesses_org_name_uq").on(t.organizationId, sql`lower(${t.name})`),
+    index("businesses_sector_idx").on(t.sectorId),
+  ],
 );
 
 export const departments = pgTable(
@@ -121,8 +130,10 @@ export const agents = pgTable(
   {
     id: id(),
     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    /** NULL = headquarters-level agent (Chief AI Manager, Central PM). */
+    /** NULL = headquarters- or sector-level agent. */
     businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+    /** Sector-level agent (sector manager / sector specialist): set with business_id NULL. */
+    sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "cascade" }),
     departmentId: uuid("department_id").references(() => departments.id, { onDelete: "set null" }),
     slug: text("slug").notNull(),
     displayName: text("display_name").notNull(),
@@ -134,7 +145,13 @@ export const agents = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("agents_org_slug_uq").on(t.organizationId, t.slug), index("agents_business_idx").on(t.businessId)],
+  (t) => [
+    uniqueIndex("agents_org_slug_uq").on(t.organizationId, t.slug),
+    index("agents_business_idx").on(t.businessId),
+    index("agents_sector_idx").on(t.sectorId),
+    // An agent works for one business, OR one sector, OR headquarters - never two scopes.
+    check("agents_one_scope_ck", sql`${t.businessId} is null or ${t.sectorId} is null`),
+  ],
 );
 
 export const agentPermissions = pgTable(
@@ -159,6 +176,8 @@ export const projects = pgTable(
     id: id(),
     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+    /** Sector-wide project (business_id NULL). Both NULL = headquarters / cross-sector project. */
+    sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "cascade" }),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     status: projectStatus("status").notNull().default("proposed"),
@@ -363,6 +382,8 @@ export const budgets = pgTable(
     id: id(),
     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
+    /** Sector budget (business_id NULL). Both NULL = organization budget. */
+    sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "cascade" }),
     period: budgetPeriod("period").notNull().default("monthly"),
     periodStart: date("period_start").notNull(),
     currency: text("currency").notNull().default("USD"),
@@ -372,7 +393,15 @@ export const budgets = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex("budgets_scope_period_uq").on(t.organizationId, t.businessId, t.period, t.periodStart),
+    // One budget per scope and period (NULLs coalesced so organization/sector budgets are unique too).
+    uniqueIndex("budgets_scope_period_uq").on(
+      t.organizationId,
+      sql`coalesce(${t.businessId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      sql`coalesce(${t.sectorId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      t.period,
+      t.periodStart,
+    ),
+    check("budgets_one_scope_ck", sql`${t.businessId} is null or ${t.sectorId} is null`),
     check("budgets_amounts_ck", sql`${t.limitMicros} >= 0 and ${t.spentMicros} >= 0`),
   ],
 );

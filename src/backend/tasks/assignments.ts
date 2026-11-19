@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/infrastructure/db/client";
-import { agentPermissions, agents, businesses, tasks } from "@/infrastructure/db/schema";
+import { agentPermissions, agents, businesses, sectors, tasks } from "@/infrastructure/db/schema";
 import type { RequestContext } from "../auth/context";
 import { ServiceError, assertUuid } from "../errors";
 import { createExecutiveTask } from "./executive";
@@ -26,6 +26,10 @@ export interface AssignableAgent {
   role: string;
   businessId: string | null;
   businessName: string | null;
+  sectorId: string | null;
+  sectorName: string | null;
+  /** For sector agents: the (non-archived) businesses of their sector, one of which an assignment must name. */
+  sectorBusinesses: { id: string; name: string }[];
   capability: AgentCapability;
   openTasks: number;
 }
@@ -39,25 +43,32 @@ export async function listAssignableAgents(db: Db, organizationId: string): Prom
       role: agents.role,
       businessId: agents.businessId,
       businessName: businesses.name,
+      sectorId: agents.sectorId,
+      sectorName: sectors.name,
     })
     .from(agents)
     .leftJoin(businesses, eq(businesses.id, agents.businessId))
+    .leftJoin(sectors, eq(sectors.id, agents.sectorId))
     .where(and(eq(agents.organizationId, organizationId), eq(agents.status, "active")));
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
-  const [perms, open] = await Promise.all([
+  const [perms, open, orgBusinesses] = await Promise.all([
     db.select({ agentId: agentPermissions.agentId, p: agentPermissions.permission }).from(agentPermissions).where(inArray(agentPermissions.agentId, ids)),
     db
       .select({ agentId: tasks.assigneeAgentId, state: tasks.state })
       .from(tasks)
       .where(and(eq(tasks.organizationId, organizationId), inArray(tasks.state, ["assigned", "running", "waiting", "paused"]))),
+    db.select({ id: businesses.id, name: businesses.name, sectorId: businesses.sectorId, status: businesses.status }).from(businesses).where(eq(businesses.organizationId, organizationId)),
   ]);
   return rows
     .map((r) => {
       const mine = new Set(perms.filter((p) => p.agentId === r.id).map((p) => p.p));
       const capability: AgentCapability =
         r.role === "chief-ai-manager" && mine.has("org.read") ? "plans-objectives" : mine.has("research.web_search") ? "runs-research" : "tracked-only";
-      return { ...r, capability, openTasks: open.filter((t) => t.agentId === r.id).length };
+      const sectorBusinesses = r.sectorId
+        ? orgBusinesses.filter((b) => b.sectorId === r.sectorId && b.status !== "archived").map((b) => ({ id: b.id, name: b.name })).sort((a, b) => a.name.localeCompare(b.name))
+        : [];
+      return { ...r, sectorBusinesses, capability, openTasks: open.filter((t) => t.agentId === r.id).length };
     })
     .sort((a, b) => (a.businessId === null ? -1 : 0) - (b.businessId === null ? -1 : 0) || a.displayName.localeCompare(b.displayName));
 }
@@ -66,6 +77,8 @@ export interface AssignmentInput {
   agentId: string;
   instructions: string;
   title?: string;
+  /** Required for sector agents: which business of their sector the work is for. */
+  businessId?: string;
 }
 
 export async function assignWork(db: Db, ctx: RequestContext, input: AssignmentInput, idempotencyKey?: string) {
@@ -87,9 +100,17 @@ export async function assignWork(db: Db, ctx: RequestContext, input: AssignmentI
     return { task: r.task, agent, note: `${r.note} It runs automatically when the worker is on.` };
   }
 
+  let businessId = agent.businessId;
+  if (agent.sectorId) {
+    // A sector agent works for one business of its sector per assignment.
+    businessId = input.businessId ? assertUuid(input.businessId, "businessId") : null;
+    if (!businessId || !agent.sectorBusinesses.some((b) => b.id === businessId)) {
+      throw new ServiceError("invalid-input", `Choose which ${agent.sectorName ?? "sector"} business this assignment is for.`);
+    }
+  }
   const svc = new TaskService(db);
   const title = (input.title?.trim() || instructions.replace(/\s+/g, " ").slice(0, 120)).slice(0, 200);
-  const { task, created } = await svc.createTask(ctx, { title, description: instructions, businessId: agent.businessId, kind: "general" }, idempotencyKey);
+  const { task, created } = await svc.createTask(ctx, { title, description: instructions, businessId, kind: "general" }, idempotencyKey);
   if (!created) return { task, agent, note: "Already submitted." };
   const assigned = await svc.transition(ctx, task.id, { action: "assign", agentId: agent.id, reason: "Owner assignment" });
   return {

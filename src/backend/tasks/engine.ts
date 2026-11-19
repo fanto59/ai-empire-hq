@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { planTransition, type TaskAction } from "@/domain/task-lifecycle";
 import type { Executor } from "@/infrastructure/db/client";
-import { agentPermissions, agents, approvalRequests, executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { agentPermissions, agents, approvalRequests, businesses, executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { canAssignAgent } from "../org/rules";
 import { writeAudit } from "../audit";
 import { ServiceError } from "../errors";
 import { appendEvent, hasTerminalEvent, latestRun } from "../execution/events";
@@ -207,9 +208,9 @@ async function assertAssignable(tx: Executor, task: TaskRow, agentId: string) {
   const [agent] = await tx.select().from(agents).where(eq(agents.id, agentId));
   if (!agent || agent.organizationId !== task.organizationId) throw new ServiceError("invalid-input", "Agent not found.");
   if (agent.status !== "active") throw new ServiceError("conflict", `Agent ${agent.slug} is ${agent.status}, not active.`, "agent-inactive");
-  if (agent.businessId !== task.businessId) {
-    throw new ServiceError("forbidden", "Agents can only take tasks from their own business (or headquarters agents from headquarters).", "business-mismatch");
-  }
+  const [business] = task.businessId ? await tx.select().from(businesses).where(eq(businesses.id, task.businessId)) : [];
+  const rule = canAssignAgent(agent, business ?? null);
+  if (!rule.ok) throw new ServiceError(rule.code === "business-archived" ? "conflict" : "forbidden", rule.message, rule.code);
   const grant = await tx
     .select({ id: agentPermissions.id })
     .from(agentPermissions)

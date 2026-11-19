@@ -17,7 +17,7 @@ export async function getResearchStatus(db: Db, organizationId: string) {
   const assigned = first ? resolveAgentModel(first, await agentPermissionSet(db, first.id)) : null;
   const status = assigned ? getProvider(assigned.provider).status() : { ready: false, reason: "No research agent is configured." };
   const budgetRows = await db
-    .select({ businessId: budgets.businessId, limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
+    .select({ businessId: budgets.businessId, sectorId: budgets.sectorId, limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
     .from(budgets)
     .where(and(eq(budgets.organizationId, organizationId), eq(budgets.periodStart, monthStart(new Date()))));
   return {
@@ -30,7 +30,7 @@ export async function getResearchStatus(db: Db, organizationId: string) {
     maxRunMicros: config.research.maxRunMicros,
     businesses: withAgents.map(({ agent, ...b }) => ({ ...b, agentName: agent?.displayName ?? null })),
     budgets: budgetRows.map((b) => ({
-      scope: b.businessId === null ? "Organization" : (bizRows.find((x) => x.id === b.businessId)?.name ?? "Business"),
+      scope: b.businessId ? (bizRows.find((x) => x.id === b.businessId)?.name ?? "Business") : b.sectorId ? "Sector" : "Organization",
       limitMicros: b.limitMicros,
       spentMicros: b.spentMicros,
     })),

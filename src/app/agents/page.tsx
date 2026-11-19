@@ -62,7 +62,12 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
             key={preselect ?? "none"}
             action={assignWorkAction}
             defaultAgentId={agents.find((a) => a.slug === preselect)?.id}
-            agents={agents.map((a) => ({ id: a.id, label: `${a.displayName} · ${a.businessName ?? "Headquarters"}`, capability: a.capability }))}
+            agents={agents.map((a) => ({
+              id: a.id,
+              label: `${a.displayName} · ${a.businessName ?? (a.sectorName ? `${a.sectorName} sector` : "Headquarters")}`,
+              capability: a.capability,
+              businesses: a.sectorId ? a.sectorBusinesses : undefined,
+            }))}
           />
         ) : (
           <p className="text-sm text-slate-400">
@@ -83,7 +88,7 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
                 <div className="min-w-0">
                   <h2 className="font-semibold text-white">{a.displayName}</h2>
                   <p className="text-xs text-slate-400">
-                    {a.role.replace(/-/g, " ")} · {a.businessName ?? "Headquarters"}
+                    {a.role.replace(/-/g, " ")} · {a.businessName ?? (a.sectorName ? `${a.sectorName} sector` : "Headquarters")}
                   </p>
                 </div>
                 <span className={`rounded-full px-2.5 py-0.5 text-[11px] ring-1 ${CAPABILITY[a.capability].className}`}>{CAPABILITY[a.capability].label}</span>

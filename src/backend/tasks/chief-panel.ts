@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { PROVIDER_LABELS } from "@/agents/providers/catalog";
 import { getProvider } from "@/agents/providers/registry";
 import { agentPermissionSet, resolveAgentModel } from "../models/assignment";
 import { loadRuntimeConfig } from "@/infrastructure/config/env";
 import type { Db } from "@/infrastructure/db/client";
 import { budgets, executionEvents, executionRuns, knowledgeDocuments, modelUsage, tasks } from "@/infrastructure/db/schema";
-import { monthStart } from "../budgets/spend-guard";
+import { budgetScopeFilter, monthStart } from "../budgets/spend-guard";
 import { findChiefAgent } from "./executive";
 
 /**
@@ -25,7 +25,7 @@ export async function loadChiefPanel(db: Db, organizationId: string, signedIn: b
     db
       .select({ limitMicros: budgets.limitMicros, spentMicros: budgets.spentMicros })
       .from(budgets)
-      .where(and(eq(budgets.organizationId, organizationId), isNull(budgets.businessId), eq(budgets.periodStart, monthStart(new Date())))),
+      .where(budgetScopeFilter(organizationId, "organization", monthStart(new Date()))),
   ]);
 
   const assigned = chief ? resolveAgentModel(chief, await agentPermissionSet(db, chief.id)) : null;

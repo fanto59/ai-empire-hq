@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
-import type { Db } from "@/infrastructure/db/client";
+import type { Db, Executor } from "@/infrastructure/db/client";
 import { budgets, modelUsage } from "@/infrastructure/db/schema";
 
 /**
@@ -14,6 +14,9 @@ import { budgets, modelUsage } from "@/infrastructure/db/schema";
  * actual cost and a model_usage row is written. A crash between reserve and
  * settle leaves the worst case counted as spent (fail-safe).
  *
+ * Sector budgets are optional: when the business's sector has a budget for
+ * the month, it must have room too; without one, the sector adds no limit.
+ *
  * A per-attempt cap (maxRunMicros) bounds a single task attempt as well.
  */
 export class BudgetExceededError extends Error {
@@ -26,6 +29,8 @@ export class BudgetExceededError extends Error {
 export interface SpendScope {
   organizationId: string;
   businessId: string | null;
+  /** The business's sector (its optional sector budget also applies). */
+  sectorId?: string | null;
   agentId: string | null;
   runId: string | null;
   provider: string;
@@ -36,6 +41,23 @@ export interface SpendScope {
 export function monthStart(now: Date): string {
   return `${now.toISOString().slice(0, 7)}-01`;
 }
+
+/** Budget scope: the organization, one sector, or one business. */
+export type BudgetScope = "organization" | { sectorId: string } | { businessId: string };
+
+/** Row filter for exactly one budget scope (an organization budget never matches a sector or business row). */
+export function budgetScopeFilter(organizationId: string, scope: BudgetScope, period: string) {
+  const business = scope !== "organization" && "businessId" in scope ? scope.businessId : null;
+  const sector = scope !== "organization" && "sectorId" in scope ? scope.sectorId : null;
+  return and(
+    eq(budgets.organizationId, organizationId),
+    business ? eq(budgets.businessId, business) : isNull(budgets.businessId),
+    sector ? eq(budgets.sectorId, sector) : isNull(budgets.sectorId),
+    eq(budgets.periodStart, period),
+  );
+}
+
+const describe = (scope: BudgetScope) => (scope === "organization" ? "The organization" : "sectorId" in scope ? "This sector" : "This business");
 
 export class SpendGuard {
   private readonly db: Db;
@@ -65,20 +87,15 @@ export class SpendGuard {
     }
     const period = monthStart(this.now());
     await this.db.transaction(async (tx) => {
-      for (const businessId of this.budgetScopes()) {
+      for (const scope of await this.budgetScopes(tx, period)) {
         const rows = await tx
           .update(budgets)
           .set({ spentMicros: sql`${budgets.spentMicros} + ${amt}`, updatedAt: this.now() })
-          .where(
-            and(
-              this.scopeFilter(businessId, period),
-              lte(sql`${budgets.spentMicros} + ${amt}`, budgets.limitMicros),
-            ),
-          )
+          .where(and(budgetScopeFilter(this.scope.organizationId, scope, period), lte(sql`${budgets.spentMicros} + ${amt}`, budgets.limitMicros)))
           .returning({ id: budgets.id });
         if (rows.length === 0) {
           throw new BudgetExceededError(
-            `${businessId === null ? "The organization" : "This business"} has no monthly API budget with room for the next model call (needs up to $${(amt / 1e6).toFixed(4)}). Set one with npm run budget:set.`,
+            `${describe(scope)} has no monthly API budget with room for the next model call (needs up to $${(amt / 1e6).toFixed(4)}). Set one with npm run budget:set.`,
           );
         }
       }
@@ -94,13 +111,13 @@ export class SpendGuard {
     const cost = Math.max(0, Math.ceil(actual.micros));
     const period = monthStart(this.now());
     await this.db.transaction(async (tx) => {
-      for (const businessId of this.budgetScopes()) {
+      for (const scope of await this.budgetScopes(tx, period)) {
         // May exceed the limit if the response cost more than the estimate;
         // the next reserve() will then refuse.
         await tx
           .update(budgets)
           .set({ spentMicros: sql`greatest(0, ${budgets.spentMicros} + ${cost - reserved})`, updatedAt: this.now() })
-          .where(this.scopeFilter(businessId, period));
+          .where(budgetScopeFilter(this.scope.organizationId, scope, period));
       }
       await tx.insert(modelUsage).values({
         organizationId: this.scope.organizationId,
@@ -125,26 +142,30 @@ export class SpendGuard {
     if (reserved === undefined) return;
     const period = monthStart(this.now());
     await this.db.transaction(async (tx) => {
-      for (const businessId of this.budgetScopes()) {
+      for (const scope of await this.budgetScopes(tx, period)) {
         await tx
           .update(budgets)
           .set({ spentMicros: sql`greatest(0, ${budgets.spentMicros} - ${reserved})` })
-          .where(this.scopeFilter(businessId, period));
+          .where(budgetScopeFilter(this.scope.organizationId, scope, period));
       }
     });
     this.open.delete(id);
   }
 
-  private scopeFilter(businessId: string | null, period: string) {
-    return and(
-      eq(budgets.organizationId, this.scope.organizationId),
-      businessId === null ? isNull(budgets.businessId) : eq(budgets.businessId, businessId),
-      eq(budgets.periodStart, period),
-    );
-  }
-
-  private budgetScopes(): (string | null)[] {
-    // The organization-wide budget always applies; the business budget too.
-    return this.scope.businessId ? [null, this.scope.businessId] : [null];
+  /**
+   * Budgets that apply: the organization always; the business for business
+   * work; the business's sector only when a sector budget exists this month.
+   */
+  private async budgetScopes(tx: Executor, period: string): Promise<BudgetScope[]> {
+    const scopes: BudgetScope[] = ["organization"];
+    if (this.scope.sectorId) {
+      const [row] = await tx
+        .select({ id: budgets.id })
+        .from(budgets)
+        .where(budgetScopeFilter(this.scope.organizationId, { sectorId: this.scope.sectorId }, period));
+      if (row) scopes.push({ sectorId: this.scope.sectorId });
+    }
+    if (this.scope.businessId) scopes.push({ businessId: this.scope.businessId });
+    return scopes;
   }
 }

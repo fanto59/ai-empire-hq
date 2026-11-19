@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/infrastructure/db/client";
-import { agents, apiTokens } from "@/infrastructure/db/schema";
+import { agents, apiTokens, businesses } from "@/infrastructure/db/schema";
 import { ServiceError } from "../errors";
+import { agentAccess } from "../org/rules";
 import { API_SCOPES, type ApiScope, type RequestContext } from "./context";
 
 /**
@@ -70,11 +71,17 @@ export async function authenticate(db: Db, authorization: string | null, now = n
     if (!agent || agent.status !== "active" || agent.organizationId !== row.organizationId) throw UNAUTHENTICATED();
     scopes.delete("approvals:decide");
     scopes.delete("models:admin"); // agents can never change model assignments
+    scopes.delete("businesses:admin"); // nor add or archive businesses
+    // Business agents: their business. Sector agents: their sector's businesses. HQ agents: headquarters.
+    const sectorBusinesses = agent.sectorId
+      ? (await db.select({ id: businesses.id }).from(businesses).where(eq(businesses.sectorId, agent.sectorId))).map((b) => b.id)
+      : [];
+    const access = agentAccess(agent, sectorBusinesses);
     ctx = {
       organizationId: row.organizationId,
       principal: { kind: "agent", id: `token:${row.id}`, agentId: agent.id },
-      businesses: agent.businessId ? [agent.businessId] : [],
-      hq: agent.businessId === null,
+      businesses: access.businesses,
+      hq: access.hq,
       scopes,
     };
   } else {
