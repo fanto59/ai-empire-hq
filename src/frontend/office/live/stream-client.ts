@@ -38,6 +38,11 @@ export function connectLiveStream(sink: LiveSink, opts: StreamClientOptions = {}
   /** Bumped per connection, so a late probe of an old connection can't override a newer one. */
   let generation = 0;
 
+  /** Data arriving means the stream works - unless the browser says it is offline. */
+  const markLive = () => {
+    if (typeof navigator === "undefined" || navigator.onLine !== false) sink.setConnection("live");
+  };
+
   const parse = <T,>(ev: MessageEvent): T | null => {
     try {
       return JSON.parse(String(ev.data)) as T;
@@ -54,26 +59,26 @@ export function connectLiveStream(sink: LiveSink, opts: StreamClientOptions = {}
     es = src;
     src.onopen = () => {
       backoff = 1_000;
-      sink.setConnection("live");
+      markLive();
     };
     src.addEventListener("snapshot", (ev) => {
       const s = parse<LiveSnapshot>(ev as MessageEvent);
       if (!s) return;
       lastId = (ev as MessageEvent).lastEventId || String(s.cursor);
       sink.applySnapshot(s);
-      sink.setConnection("live");
+      markLive();
     });
     src.addEventListener("agent-event", (ev) => {
       const e = parse<LiveEvent>(ev as MessageEvent);
       if (!e) return;
-      sink.setConnection("live"); // data is flowing
+      markLive(); // data is flowing
       lastId = (ev as MessageEvent).lastEventId || String(e.streamId);
       sink.ingest(e);
     });
     src.addEventListener("health", (ev) => {
       const h = parse<LiveHealth>(ev as MessageEvent);
       if (!h) return;
-      sink.setConnection("live");
+      markLive();
       sink.applyHealth(h);
     });
     src.addEventListener("stream-error", () => sink.setConnection("reconnecting"));
