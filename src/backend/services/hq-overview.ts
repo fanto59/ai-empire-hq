@@ -1,0 +1,35 @@
+import type { AgentProfile, Business } from "@/domain";
+import { loadRuntimeConfig, type ProviderId } from "@/infrastructure/config/env";
+import { emptyRepositories } from "./repositories";
+
+/**
+ * View model for the HQ dashboard. Contains only data that is safe to send to
+ * the browser: no secrets, no location refs, no raw config.
+ */
+export interface HqOverview {
+  appEnv: string;
+  agentExecutionEnabled: boolean;
+  providers: { id: ProviderId; enabled: boolean }[];
+  businesses: Business[];
+  hqAgents: AgentProfile[];
+}
+
+export async function getHqOverview(): Promise<HqOverview> {
+  const config = loadRuntimeConfig();
+  const repos = emptyRepositories;
+  const [businesses, hqAgents] = await Promise.all([
+    repos.businesses.list(),
+    repos.agents.listHqLevel(),
+  ]);
+
+  return {
+    appEnv: config.appEnv,
+    agentExecutionEnabled: config.agentExecutionEnabled,
+    providers: (Object.keys(config.providers) as ProviderId[]).map((id) => ({
+      id,
+      enabled: config.providers[id].enabled,
+    })),
+    businesses,
+    hqAgents,
+  };
+}
