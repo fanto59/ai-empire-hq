@@ -13,10 +13,14 @@ import type { ModelProviderId } from "@/domain/agent";
  * - "replay": a recorded live event being replayed (e.g. after reconnect).
  * - "test":   produced by automated tests. Must never be persisted or shown
  *             in a production UI. (Rule: no fake production activity.)
+ * - "simulation": produced by the in-browser prototype simulation (e.g. the
+ *             Executive Floor demo). Allowed in the UI ONLY when every surface
+ *             showing it is labelled as simulation. Never sent to the server,
+ *             never persisted; the backend event bus drops it.
  */
 export const AGENT_EVENT_SCHEMA_VERSION = 1 as const;
 
-export type EventOrigin = "live" | "replay" | "test";
+export type EventOrigin = "live" | "replay" | "test" | "simulation";
 
 export type RunId = string;
 export type EventId = string;

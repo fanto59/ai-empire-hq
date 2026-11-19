@@ -10,7 +10,7 @@ for the activity feed, status badges, and office animations.
 | `schemaVersion` | `1` | Bump on breaking changes |
 | `id` | string | Unique event id (dedup key) |
 | `type` | see below | Discriminant |
-| `origin` | `live \| replay \| test` | Mandatory provenance |
+| `origin` | `live \| replay \| test \| simulation` | Mandatory provenance |
 | `occurredAt` | ISO-8601 UTC | |
 | `sequence` | int >= 0 | Monotonic per run; ordering + gap detection |
 | `runId` | string | One agent run |
@@ -68,6 +68,9 @@ requires authentication first (see SECURITY.md).
 
 - Never emit events without a real run behind them. Tests use
   `origin: "test"`; the bus drops these in production.
+- The Executive Floor prototype emits `origin: "simulation"` events in the
+  browser only (`src/frontend/office/sim/director.ts`). The backend bus
+  always drops them, and the UI labels them as simulated.
 - Payload text is human-readable and redacted: no secrets, credentials, or
   full tool inputs that may contain personal data.
 - Add new event types by extending the union, `AGENT_EVENT_TYPES`, and

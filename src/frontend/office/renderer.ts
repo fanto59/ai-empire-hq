@@ -1,7 +1,10 @@
 import type { OfficeScene } from "./scene";
 
 /**
- * Imperative renderer contract for engines that own a canvas (PixiJS).
+ * Generic scene-renderer contract for data-driven floors (e.g. future sector
+ * floors built from real Business/AgentProfile records via buildOfficeScene).
+ * The Executive Floor prototype uses the richer `ExecutiveFloorHandle` in
+ * pixi/executive-floor-renderer.ts; both follow the same rules below.
  *
  * Lifecycle (driven by <OfficeViewport>):
  *   mount(container) -> update(scene)* -> resize(w, h)* -> destroy()
@@ -29,7 +32,8 @@ export interface OfficeRenderer {
 export type OfficeRendererKind = "svg-preview" | "pixi";
 
 /**
- * Future: `pixi` resolves to `() => import("./pixi/pixi-renderer")`.
- * PixiJS is intentionally NOT installed yet (see docs/VIRTUAL_OFFICE.md).
+ * - svg-preview: static, server-rendered floor plan (HQ dashboard).
+ * - pixi: the interactive Executive Floor (`pixi/executive-floor-renderer.ts`),
+ *   loaded with a dynamic import by `executive-floor/FloorCanvas.tsx`.
  */
-export const AVAILABLE_RENDERERS: readonly OfficeRendererKind[] = ["svg-preview"];
+export const AVAILABLE_RENDERERS: readonly OfficeRendererKind[] = ["svg-preview", "pixi"];

@@ -39,6 +39,16 @@ is added deliberately, behind explicit gates.
 - The event bus filters subscriptions by `businessId`.
 - HQ-level data uses `businessId: null` and is visible only to HQ-level roles.
 
+## Prototype simulation
+
+The Executive Floor (`/office`) runs a scripted, in-browser simulation:
+
+- Events carry `origin: "simulation"`; the backend event bus drops them and
+  nothing sends them to the server or storage.
+- Every surface is labelled: banner, SIM chips, inspector disclaimer,
+  "Not connected" model, `$0.00` cost placeholder.
+- Characters use codenames; no real person, account, or business is shown.
+
 ## Layer boundaries
 
 - `src/frontend` cannot import `src/backend`, `src/infrastructure`, or
@@ -57,6 +67,9 @@ is added deliberately, behind explicit gates.
 - `X-Robots-Tag: noindex` + `robots` metadata: private app.
 - `X-Powered-By` disabled.
 - `/api/health` reveals no config or version info.
+- PixiJS normally compiles shaders with `new Function`; we import
+  `pixi.js/unsafe-eval` (a polyfill that *avoids* eval) so the CSP can keep
+  `'unsafe-eval'` out of production.
 
 ## Agent execution safety (for future phases)
 

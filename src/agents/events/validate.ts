@@ -16,7 +16,7 @@ export type ValidationResult =
   | { ok: true; event: AgentExecutionEvent }
   | { ok: false; errors: string[] };
 
-const ORIGINS = new Set(["live", "replay", "test"]);
+const ORIGINS = new Set(["live", "replay", "test", "simulation"]);
 const TYPES = new Set<string>(AGENT_EVENT_TYPES);
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const MAX_STRING = 256;

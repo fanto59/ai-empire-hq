@@ -8,12 +8,25 @@ A private, secure, expandable multi-business AI headquarters.
 
 ## Quick start
 
-Requires Node.js 22 (see `.nvmrc`).
+Requires Node.js 22.18 or newer (see `.nvmrc`).
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
 ```
+
+Pages:
+
+- `/` – Headquarters dashboard
+- `/office` – **Executive Floor**: interactive 2.5D office (PixiJS) with three
+  clearly labelled *simulated* prototype characters. Click a character to
+  inspect it; drag to pan; scroll or use the toolbar to zoom.
+- `/sectors` – Sector overview placeholder
+
+### Previewing in Claude Code on the web
+
+Ask Claude to run `npm run dev` and open the preview, or run it yourself in a
+local clone and open http://localhost:3000/office. Nothing is deployed.
 
 Production build:
 
@@ -25,7 +38,8 @@ npm start
 Run every check before opening a pull request:
 
 ```bash
-npm run check      # typecheck + lint + production build
+npm test           # unit tests (Node's built-in runner)
+npm run check      # typecheck + lint + tests + production build
 ```
 
 Optional: disable Next.js anonymous telemetry on your machine with

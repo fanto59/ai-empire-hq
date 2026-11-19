@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { AppNav } from "@/frontend/components/AppNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +16,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+      <body className="min-h-screen font-sans antialiased">
+        <AppNav />
+        {children}
+      </body>
     </html>
   );
 }

@@ -26,6 +26,8 @@ export function createInMemoryEventBus(): AgentEventBus {
 
   return {
     publish(event) {
+      // Rule: simulation events never enter the backend.
+      if (event.origin === "simulation") return;
       // Rule: "test" events are never delivered outside test code paths.
       if (event.origin === "test" && process.env.NODE_ENV === "production") return;
       for (const sub of subscribers) {

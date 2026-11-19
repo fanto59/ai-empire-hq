@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getHqOverview } from "@/backend/services/hq-overview";
 import { PROVIDER_LABELS } from "@/agents/providers/registry";
 import { ROLE_DEFINITIONS } from "@/agents/roles/hq-roles";
@@ -34,8 +35,18 @@ export default async function HeadquartersPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Panel title="Virtual office" subtitle="Floor plan preview. Animated isometric employees arrive with the PixiJS renderer.">
+          <Panel title="Virtual office" subtitle="Static floor plan of headquarters data. No agents are configured yet.">
             <OfficeViewport scene={scene} />
+            <Link
+              href="/office"
+              className="mt-4 flex items-center justify-between rounded-lg bg-sky-500/10 px-4 py-3 text-sm ring-1 ring-sky-400/25 transition hover:bg-sky-500/15"
+            >
+              <span>
+                <span className="font-medium text-sky-200">Open the interactive Executive Floor</span>
+                <span className="block text-xs text-slate-400">2.5D prototype with simulated characters (clearly labelled).</span>
+              </span>
+              <span aria-hidden className="text-sky-300">→</span>
+            </Link>
           </Panel>
 
           <Panel title="Business sectors">

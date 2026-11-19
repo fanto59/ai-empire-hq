@@ -53,6 +53,11 @@ The frontend boundary is enforced by ESLint (`no-restricted-imports`).
    because no execution runtime exists.
 4. Renders the UI. Only the safe view model crosses to the browser.
 
+`GET /office` - interactive Executive Floor (client-side PixiJS, simulated
+characters; see [VIRTUAL_OFFICE.md](VIRTUAL_OFFICE.md)).
+
+`GET /sectors` - placeholder sector overview (no sectors exist yet).
+
 `GET /api/health` - liveness probe; returns `{ "status": "ok" }` only.
 
 ## Organization model
@@ -88,7 +93,8 @@ See [DATA_MODEL.md](DATA_MODEL.md).
 2. Authentication for the single owner (required before any write API).
 3. Persistence (local DB) + business CRUD with audit log.
 4. Agent event ingestion + SSE activity feed (still no providers).
-5. PixiJS renderer with animated avatars driven by derived activity.
+5. PixiJS renderer with animated avatars — **prototype done** (Executive
+   Floor, simulated); next: drive it from real events.
 6. Obsidian vault read-only indexing.
 7. First model provider adapter behind flags, budgets, and approval gates.
 8. Chief AI Manager / Central Project Manager orchestration.
