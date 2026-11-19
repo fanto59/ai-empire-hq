@@ -1,1 +1,63 @@
-# ai-empire-hq
+# AI EMPIRE HQ
+
+A private, secure, expandable multi-business AI headquarters.
+
+> **Status: foundation.** The app runs locally and shows the HQ structure. No
+> model providers, business accounts, databases, or agents are connected, and
+> no activity is simulated.
+
+## Quick start
+
+Requires Node.js 22.18 or newer (see `.nvmrc`).
+
+```bash
+npm install
+npm run db:setup   # embedded PostgreSQL + test data (first time only)
+npm run dev        # http://localhost:3000
+```
+
+Pages:
+
+- `/` – Headquarters dashboard
+- `/office` – **Executive Floor**: interactive 2.5D office (PixiJS) with three
+  clearly labelled *simulated* prototype characters. Click a character to
+  inspect it; drag to pan; scroll or use the toolbar to zoom.
+- `/tasks` – Tasks from the operational database (test data)
+- `/knowledge` – Knowledge vault (Markdown/Obsidian notes, sample content)
+- `/sectors` – Sector overview placeholder
+
+### Previewing in Claude Code on the web
+
+Ask Claude to run `npm run dev` and open the preview, or run it yourself in a
+local clone and open http://localhost:3000/office. Nothing is deployed.
+
+Production build:
+
+```bash
+npm run build
+npm start
+```
+
+Run every check before opening a pull request:
+
+```bash
+npm test           # unit tests (Node's built-in runner)
+npm run check      # typecheck + lint + tests + production build
+```
+
+Optional: disable Next.js anonymous telemetry on your machine with
+`npx next telemetry disable`.
+
+## Documentation
+
+| Doc | Purpose |
+| --- | --- |
+| [CLAUDE.md](CLAUDE.md) | Rules for AI coding agents working in this repo |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, data flow, roadmap |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security rules |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Multi-business data model |
+| [docs/VIRTUAL_OFFICE.md](docs/VIRTUAL_OFFICE.md) | Isometric office rendering plan |
+| [docs/AGENT_EVENTS.md](docs/AGENT_EVENTS.md) | Agent execution event contract |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Database, task API, state machine, durable execution |
+| [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) | Knowledge vault, access rules, Obsidian sync design |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud readiness |
