@@ -3,8 +3,8 @@ import { ProviderDisabledError, type ModelProvider } from "./types";
 
 /**
  * Placeholder provider: always disabled, never makes network calls.
- * Real adapters (anthropic.ts, openai.ts, xai.ts) replace these one at a
- * time, each in its own reviewed pull request.
+ * Anthropic is used by the Research Agent through anthropic.ts (tool-use
+ * loop); OpenAI and xAI remain disabled placeholders.
  */
 function disabledProvider(id: ModelProviderId): ModelProvider {
   return {

@@ -68,7 +68,7 @@ export class ExecutionQueue {
   }
 
   /** Queues every assigned task that has no active run and whose dependencies are done. */
-  async enqueueReady(options: { organizationId?: string; limit?: number } = {}): Promise<number> {
+  async enqueueReady(options: { organizationId?: string; limit?: number; kinds?: readonly ("general" | "research")[] } = {}): Promise<number> {
     const candidates = await this.db
       .select({ id: tasks.id })
       .from(tasks)
@@ -76,6 +76,7 @@ export class ExecutionQueue {
         and(
           eq(tasks.state, "assigned"),
           options.organizationId ? eq(tasks.organizationId, options.organizationId) : undefined,
+          options.kinds ? inArray(tasks.kind, [...options.kinds]) : undefined,
           lt(tasks.attempt, tasks.maxAttempts),
           sql`not exists (select 1 from ${executionRuns} r where r.task_id = ${tasks.id} and r.status in ('queued','running'))`,
           sql`not exists (select 1 from ${taskDependencies} d join ${tasks} dt on dt.id = d.depends_on_task_id where d.task_id = ${tasks.id} and dt.state <> 'completed')`,
@@ -93,15 +94,29 @@ export class ExecutionQueue {
     return created;
   }
 
-  /** Claims the oldest available run. Returns null when there is nothing to do. */
-  async claim(workerId: string): Promise<ClaimedRun | null> {
+  /**
+   * Claims the oldest available run. `kinds` restricts which task kinds this
+   * worker can execute (e.g. a research worker only claims research tasks).
+   */
+  async claim(workerId: string, options: { kinds?: readonly ("general" | "research")[] } = {}): Promise<ClaimedRun | null> {
     if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(workerId)) throw new ServiceError("invalid-input", "Invalid worker id.");
     const now = this.now();
     return this.db.transaction(async (tx) => {
       const [run] = await tx
         .select()
         .from(executionRuns)
-        .where(and(eq(executionRuns.status, "queued"), lte(executionRuns.availableAt, now)))
+        .where(
+          and(
+            eq(executionRuns.status, "queued"),
+            lte(executionRuns.availableAt, now),
+            options.kinds
+              ? sql`exists (select 1 from ${tasks} t where t.id = ${executionRuns.taskId} and t.kind in (${sql.join(
+                  options.kinds.map((k) => sql`${k}`),
+                  sql`, `,
+                )}))`
+              : undefined,
+          ),
+        )
         .orderBy(asc(executionRuns.availableAt), asc(executionRuns.createdAt))
         .limit(1)
         .for("update", { skipLocked: true });

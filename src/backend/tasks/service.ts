@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { TASK_ACTIONS, TASK_STATES, availableActions, type TaskAction, type TaskState } from "@/domain/task-lifecycle";
 import type { Db } from "@/infrastructure/db/client";
-import { agents, approvalRequests, auditLogs, executionRuns, projects, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { agents, approvalRequests, auditLogs, executionEvents, executionRuns, knowledgeDocuments, modelUsage, projects, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { canAccessBusiness, type ApiScope, type RequestContext } from "../auth/context";
 import { writeAudit } from "../audit";
 import { ServiceError, UUID, assertUuid } from "../errors";
@@ -16,6 +16,8 @@ import { applyTransition, lockTask, type Actor, type RunRow, type TaskRow } from
  */
 export interface CreateTaskInput {
   title: string;
+  /** "research" tasks are executed by the Research Agent worker. */
+  kind?: "general" | "research";
   description?: string;
   businessId: string | null;
   projectId?: string | null;
@@ -51,6 +53,12 @@ export interface TaskDetail {
   runs: RunRow[];
   approvals: (typeof approvalRequests.$inferSelect)[];
   history: { action: string; actorKind: string; actorId: string; occurredAt: Date; metadata: unknown }[];
+  /** Execution events across all runs (oldest first, capped). */
+  events: (typeof executionEvents.$inferSelect)[];
+  /** Total model spend recorded for this task's runs, in micro-dollars. */
+  costMicros: number;
+  /** Knowledge vault notes linked to this task (e.g. research reports). */
+  documents: { vaultPath: string; title: string }[];
   availableActions: TaskAction[];
 }
 
@@ -99,6 +107,7 @@ export class TaskService {
           businessId: v.businessId,
           projectId: v.projectId,
           title: v.title,
+          kind: v.kind,
           description: v.description,
           priority: v.priority,
           requiresApproval: v.requiresApproval,
@@ -170,7 +179,26 @@ export class TaskService {
         .where(and(eq(auditLogs.targetType, "task"), eq(auditLogs.targetId, task.id)))
         .orderBy(asc(auditLogs.id)),
     ]);
-    return { task, assignee, dependencies, runs, approvals, history, availableActions: availableActions(task) };
+    const runIds = runs.map((r) => r.id);
+    const [events, cost, documents] = await Promise.all([
+      this.db.select().from(executionEvents).where(eq(executionEvents.taskId, task.id)).orderBy(asc(executionEvents.occurredAt), asc(executionEvents.sequence)).limit(200),
+      runIds.length
+        ? this.db.select({ total: sql<number>`coalesce(sum(${modelUsage.costMicros}), 0)::bigint` }).from(modelUsage).where(inArray(modelUsage.runId, runIds))
+        : Promise.resolve([{ total: 0 }]),
+      this.db.select({ vaultPath: knowledgeDocuments.vaultPath, title: knowledgeDocuments.title }).from(knowledgeDocuments).where(eq(knowledgeDocuments.taskId, task.id)),
+    ]);
+    return {
+      task,
+      assignee,
+      dependencies,
+      runs,
+      approvals,
+      history,
+      events,
+      costMicros: Number(cost[0]?.total ?? 0),
+      documents,
+      availableActions: availableActions(task),
+    };
   }
 
   async listTasks(ctx: RequestContext, filter: TaskListFilter = {}): Promise<TaskRow[]> {
@@ -299,7 +327,16 @@ function validateCreate(input: CreateTaskInput) {
   if (!Array.isArray(dependsOn) || dependsOn.length > 20) throw new ServiceError("invalid-input", "dependsOn must be a list of at most 20 task ids.");
   dependsOn.forEach((d) => assertUuid(d, "dependsOn[]"));
   if (input.requiresApproval !== undefined && typeof input.requiresApproval !== "boolean") throw new ServiceError("invalid-input", "requiresApproval must be true or false.");
+  const kind = input.kind ?? "general";
+  if (kind !== "general" && kind !== "research") throw new ServiceError("invalid-input", "kind must be general or research.");
+  if (kind === "research") {
+    if (businessId === null) throw new ServiceError("invalid-input", "Research tasks belong to a business.");
+    if (description.trim().length < 10 || description.length > 2000) {
+      throw new ServiceError("invalid-input", "A research task needs a question of 10-2,000 characters in its description.");
+    }
+  }
   return {
+    kind,
     title,
     description,
     businessId,

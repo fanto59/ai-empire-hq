@@ -54,6 +54,14 @@ export async function seedTestData(db: Db, now: () => Date = () => new Date()): 
       (["task.read", "task.execute", "approval.request", "knowledge.read"] as const).map((permission) => ({ agentId: a.id, permission, grantedBy: "test-seed" })),
     ),
   );
+  // The Research Agent's approved, read-only research capabilities.
+  await db.insert(agentPermissions).values(
+    (["research.web_search", "research.web_fetch", "knowledge.write"] as const).map((permission) => ({
+      agentId: agent("test-research"),
+      permission,
+      grantedBy: "test-seed",
+    })),
+  );
 
   const [discovery, hqPlan] = await db
     .insert(projects)
@@ -99,6 +107,8 @@ export async function seedTestData(db: Db, now: () => Date = () => new Date()): 
   await make("Test: Old experiment (no longer needed)", bizB!.id, null, [{ action: "cancel", reason: "Test: superseded" }], { priority: 5 });
 
   // Usage and budgets: test numbers only, not linked to any financial account.
+  // Budgets start at $0, so no API spending happens until the owner sets one
+  // (npm run budget:set).
   await db.insert(modelUsage).values({
     organizationId: orgId,
     businessId: bizA!.id,

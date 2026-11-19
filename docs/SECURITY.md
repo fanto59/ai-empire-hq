@@ -39,6 +39,17 @@ is added deliberately, behind explicit gates.
 - The event bus filters subscriptions by `businessId`.
 - HQ-level data uses `businessId: null` and is visible only to HQ-level roles.
 
+## Research Agent (Claude API)
+
+See [RESEARCH_AGENT.md](RESEARCH_AGENT.md). Dedicated key variable read only
+by the provider adapter (endpoint pinned; other Claude credentials ignored),
+explicit tool allowlist (web search/fetch on approved domains + one strict
+report tool), refused tools logged, web content treated as untrusted,
+worst-case cost reserved before every call on business and organization
+budgets (default $0), per-attempt cap, deadline-bound requests, sources
+verified against what was actually retrieved. Dashboard writes require
+sign-in (API token in an httpOnly, SameSite=Strict cookie).
+
 ## Knowledge vault
 
 See [KNOWLEDGE.md](KNOWLEDGE.md). Business-scoped access contexts, strict

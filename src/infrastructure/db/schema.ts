@@ -46,8 +46,13 @@ export const agentPermission = pgEnum("agent_permission", [
   "knowledge.read",
   "knowledge.write",
   "budget.spend",
+  // Read-only research capabilities (Anthropic server-side tools).
+  "research.web_search",
+  "research.web_fetch",
 ]);
 export const projectStatus = pgEnum("project_status", ["proposed", "active", "on-hold", "done", "canceled"]);
+/** What kind of work a task is; workers only execute kinds they support. */
+export const taskKind = pgEnum("task_kind", ["general", "research"]);
 export const taskState = pgEnum("task_state", ["queued", "assigned", "running", "waiting", "paused", "completed", "failed", "canceled"]);
 export const runStatus = pgEnum("run_status", ["queued", "running", "suspended", "succeeded", "failed", "timed_out", "canceled"]);
 export const approvalStatus = pgEnum("approval_status", ["pending", "approved", "rejected", "expired"]);
@@ -169,6 +174,7 @@ export const tasks = pgTable(
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
+    kind: taskKind("kind").notNull().default("general"),
     state: taskState("state").notNull().default("queued"),
     priority: integer("priority").notNull().default(3),
     assigneeAgentId: uuid("assignee_agent_id").references(() => agents.id, { onDelete: "set null" }),

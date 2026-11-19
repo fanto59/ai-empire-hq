@@ -5,6 +5,9 @@ import { getDashboardOrganization, getDatabase } from "@/backend/db";
 import { ServiceError } from "@/backend/errors";
 import { TaskService, type TaskDetail } from "@/backend/tasks/service";
 import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
+import { formatUsd } from "@/agents/research/pricing";
+import { noteHref } from "@/frontend/knowledge/Markdown";
+import { AutoRefresh } from "@/frontend/tasks/AutoRefresh";
 
 export const metadata: Metadata = { title: "Task · AI Empire HQ" };
 export const dynamic = "force-dynamic";
@@ -38,6 +41,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         <p className="mt-6 rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-slate-300">{error}</p>
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+          <AutoRefresh active={["queued", "assigned", "running"].includes(detail.task.state)} />
           <div className="min-w-0 space-y-6">
             <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
               <div className="flex flex-wrap items-center gap-2">
@@ -50,8 +54,23 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               <h1 className="mt-3 text-2xl font-semibold text-white">{detail.task.title}</h1>
               {detail.task.description && <p className="mt-2 text-slate-400">{detail.task.description}</p>}
               {detail.task.lastError && (
-                <p className="mt-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-200 ring-1 ring-red-500/25">Last error: {detail.task.lastError}</p>
+                <p role="alert" className="mt-4 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-200 ring-1 ring-red-500/25">
+                  {detail.task.state === "failed" ? "Failed" : "Last error"}: {detail.task.lastError}
+                </p>
               )}
+              {detail.documents.map((d) => (
+                <Link
+                  key={d.vaultPath}
+                  href={noteHref(d.vaultPath)}
+                  className="mt-4 flex items-center justify-between rounded-lg bg-sky-500/10 px-4 py-3 text-sm ring-1 ring-sky-400/25 hover:bg-sky-500/15"
+                >
+                  <span>
+                    <span className="block text-xs font-semibold tracking-wider text-sky-300 uppercase">Report in the knowledge vault</span>
+                    <span className="font-medium text-slate-100">{d.title}</span>
+                  </span>
+                  <span aria-hidden className="text-sky-300">→</span>
+                </Link>
+              ))}
               {detail.task.waitingReason && (
                 <p className="mt-4 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-100 ring-1 ring-amber-500/25">Waiting: {detail.task.waitingReason}</p>
               )}
@@ -81,6 +100,27 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               </ol>
               <p className="mt-3 text-xs text-slate-500">From the append-only audit log.</p>
             </section>
+
+            {detail.events.length > 0 && (
+              <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+                <h2 className="text-sm font-semibold tracking-wide text-slate-100 uppercase">Execution events</h2>
+                <ol className="mt-3 space-y-1.5">
+                  {detail.events.map((e) => {
+                    const p = (e.payload ?? {}) as Record<string, unknown>;
+                    const text = String(p.summary ?? p.inputSummary ?? p.outputSummary ?? p.message ?? (p.model ? `model ${String(p.model)}` : ""));
+                    return (
+                      <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
+                        <span className="w-40 shrink-0 font-mono text-xs text-slate-500">{fmt(e.occurredAt)}</span>
+                        <code className={`text-xs ${e.type === "run.failed" ? "text-red-300" : e.type === "run.completed" ? "text-emerald-300" : "text-slate-300"}`}>{e.type}</code>
+                        {typeof p.tool === "string" && <span className="text-xs text-slate-400">{p.tool}</span>}
+                        <span className="min-w-0 flex-1 break-words text-slate-400">{text}</span>
+                        <span className="text-[10px] text-slate-600 uppercase">{e.origin}</span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </section>
+            )}
 
             <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
               <h2 className="text-sm font-semibold tracking-wide text-slate-100 uppercase">Execution runs</h2>
@@ -127,6 +167,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 </dd>
                 <dt className="text-slate-500">Timeout</dt>
                 <dd className="text-slate-200">{Math.round(detail.task.timeoutSeconds / 60)} min per run</dd>
+                <dt className="text-slate-500">Kind</dt>
+                <dd className="text-slate-200">{detail.task.kind}</dd>
+                <dt className="text-slate-500">Model cost</dt>
+                <dd className="tabular-nums text-slate-200">{formatUsd(detail.costMicros)}</dd>
                 <dt className="text-slate-500">Version</dt>
                 <dd className="tabular-nums text-slate-200">{detail.task.version}</dd>
                 <dt className="text-slate-500">Updated</dt>

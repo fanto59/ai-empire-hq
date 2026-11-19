@@ -18,10 +18,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/migrate.ts",
     "db:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/seed.ts",
-    "db:setup": "npm run db:migrate && npm run db:seed",
-    "db:token": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/create-token.ts"
+    "db:setup": "npm run db:migrate && npm run db:seed && npm run knowledge:seed -- --dev",
+    "db:token": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/create-token.ts",
+    "budget:set": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/db/set-budget.ts",
+    "worker": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/worker.ts",
+    "test:e2e": "RUN_LIVE_E2E=true node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs --test src/backend/execution/research-worker.e2e.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.5.0",
     "@electric-sql/pglite": "0.5.15",
     "drizzle-orm": "0.45.4",
     "next": "16.4.6",

@@ -11,15 +11,17 @@ a Central Project Manager, isolated business sectors, animated isometric AI
 employees (PixiJS), Obsidian knowledge, and Claude / OpenAI / Grok model
 providers.
 
-**Current phase: foundation + operational backend with test data.** Nothing
-external is connected; no agent executes anything.
+**Current phase: first real agent.** The Research Agent calls the Claude API
+(owner-approved) with read-only web research; everything else is test data and
+nothing else external is connected.
 
 ## Hard rules (never break these)
 
 1. **Do not use OpenClaw.** Do not add it as a dependency or reference it.
 2. **Only touch this repository.** Never modify the owner's other repositories.
 3. **No paid services.** Do not add SDKs, keys, or config for paid APIs/hosting
-   unless the owner explicitly asks in that task.
+   unless the owner explicitly asks in that task. (The owner approved the Claude
+   API for the Research Agent; see docs/RESEARCH_AGENT.md.)
 4. **No public deployment.** Do not deploy, publish, or expose this app.
 5. **No real business accounts.** Never connect to or read real business
    accounts (email, payments, social, stores, banks, ...).
@@ -34,6 +36,12 @@ external is connected; no agent executes anything.
 8. **Minimal dependencies.** Do not add frameworks or libraries without a clear
    need stated in the PR. Pin exact versions.
 9. **Work on a branch and open a PR** for review. Never push to `main`.
+
+10. **Agent credentials and capabilities.** Agents use only the app's own key
+    (`AEHQ_ANTHROPIC_API_KEY`, endpoint pinned) - never Claude Code session
+    credentials or other `ANTHROPIC_*` variables. Agents get an explicit tool
+    allowlist: no shell, no filesystem, no database access, no messaging.
+    Every paid call reserves budget first (SpendGuard).
 
 ## Stack
 
@@ -59,7 +67,10 @@ npm run knowledge:seed  # regenerate the sample knowledge vault
 npm run db:setup     # migrate + seed TEST data (embedded DB) — run before dev
 npm run db:migrate   # apply migrations (explicit step for real PostgreSQL)
 npm run db:generate  # create a migration after editing the schema
-npm run db:token     # print a test API token once
+npm run db:token     # print a test API token once (also used to sign in)
+npm run budget:set   # set this month's API budget (test org; default $0)
+npm run worker       # standalone Research Agent worker (real PostgreSQL)
+npm run test:e2e     # LIVE Claude API test (needs AEHQ_ANTHROPIC_API_KEY)
 npm run build        # production build (.next/standalone output)
 npm start            # serve the production build
 npm run check        # typecheck + lint + test + build (run before every PR)
@@ -99,7 +110,9 @@ Import rules:
 - Knowledge notes go through `src/backend/knowledge` only (never raw `fs`), with
   an access context. Sync to Obsidian stays disabled until the owner approves.
 - Agent "activity" is derived from execution events (`deriveActivity`), never
-  stored or simulated.
+  stored or simulated. Real runs record `origin: "live"` events.
+- Claude API code uses the official `@anthropic-ai/sdk`; keep model IDs,
+  prices (src/agents/research/pricing.ts) and tool versions current.
 - Renderers draw scene/floor data only; they never fetch or hold business logic.
 - Keep simulation, pathfinding and floor data pure (no PixiJS/React) and tested.
 - Feature flags default to disabled; only the exact string `"true"` enables.
@@ -114,4 +127,5 @@ Import rules:
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
+- `docs/RESEARCH_AGENT.md` - the Claude-powered Research Agent: flow, limits, credentials
 - `docs/DEPLOYMENT.md` - cloud-readiness notes (no deployment yet)

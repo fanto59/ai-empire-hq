@@ -6,6 +6,13 @@ import { loadTaskSummaries } from "@/backend/tasks/views";
 import { TASK_STATES, type TaskState } from "@/domain/task-lifecycle";
 import { TASK_STATE_LABELS } from "@/domain/task-view";
 import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
+import { getSessionContext } from "@/backend/auth/session";
+import { getResearchStatus } from "@/backend/tasks/research-status";
+import { formatUsd } from "@/agents/research/pricing";
+import { ResearchForm } from "@/frontend/tasks/ResearchForm";
+import { AutoRefresh } from "@/frontend/tasks/AutoRefresh";
+import { signOutAction } from "../login/actions";
+import { createResearchTaskAction } from "./actions";
 
 export const metadata: Metadata = { title: "Tasks · AI Empire HQ" };
 export const dynamic = "force-dynamic";
@@ -16,6 +23,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const db = await getDatabase();
   const org = db ? await getDashboardOrganization(db) : null;
   const all = db && org ? await loadTaskSummaries(db, ownerRequestContext(org.id), 500) : null;
+  const research = db && org ? await getResearchStatus(db, org.id) : null;
+  const session = db ? await getSessionContext(db) : null;
+  const active = (all ?? []).some((t) => ["queued", "assigned", "running"].includes(t.state));
   const shown = all?.filter((t) => !filter || t.state === filter) ?? [];
   const counts = new Map<TaskState, number>();
   for (const t of all ?? []) counts.set(t.state, (counts.get(t.state) ?? 0) + 1);
@@ -38,6 +48,60 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <DatabaseSetupNotice />
       ) : (
         <>
+          <AutoRefresh active={active} intervalMs={5_000} />
+          {research && (
+            <section aria-labelledby="research-title" className="mb-6 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 id="research-title" className="text-sm font-semibold tracking-wide text-slate-100 uppercase">
+                    Research Agent
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Claude ({research.model}) with read-only web search on approved sites: {research.allowedDomains.join(", ")}.
+                    Cap per attempt {formatUsd(research.maxRunMicros)}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className={`rounded-full px-2.5 py-0.5 ring-1 ${research.providerReady ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30" : "bg-amber-500/10 text-amber-200 ring-amber-500/30"}`}>
+                    {research.providerReady ? "Claude API key configured" : "Claude API not configured"}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-0.5 ring-1 ${research.workerMode === "in-process" ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30" : "bg-slate-800 text-slate-300 ring-slate-700"}`}>
+                    Worker: {research.workerMode === "in-process" ? "running in this server" : "separate process / off"}
+                  </span>
+                </div>
+              </div>
+              {!research.providerReady && <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-100 ring-1 ring-amber-500/25">{research.providerReason} Tasks will wait in the queue until it is configured.</p>}
+              <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                {research.budgets.map((b) => (
+                  <div key={b.scope} className="flex gap-1.5">
+                    <dt className="text-slate-500">{b.scope} budget (this month)</dt>
+                    <dd className={`tabular-nums ${b.spentMicros >= b.limitMicros ? "text-red-300" : "text-slate-300"}`}>
+                      {formatUsd(b.spentMicros)} / {formatUsd(b.limitMicros)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                {session ? (
+                  <>
+                    <ResearchForm action={createResearchTaskAction} businesses={research.businesses} />
+                    <form action={signOutAction} className="mt-3">
+                      <button type="submit" className="text-xs text-slate-500 hover:text-slate-300">
+                        Sign out
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-400">
+                    <Link href="/login" className="text-sky-300 hover:text-sky-200">
+                      Sign in
+                    </Link>{" "}
+                    to create research tasks.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
           <nav aria-label="Filter by state" className="mb-4 flex flex-wrap gap-1.5">
             <FilterLink href="/tasks" active={!filter} label={`All ${all.length}`} />
             {TASK_STATES.map((s) => (
@@ -63,6 +127,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                         {t.title}
                       </Link>
                       {t.projectTitle && <span className="block text-xs text-slate-500">{t.projectTitle}</span>}
+                      {t.state === "failed" && t.lastError && <span className="mt-0.5 block max-w-xl truncate text-xs text-red-300">{t.lastError}</span>}
                     </td>
                     <td className="px-4 py-2.5">
                       <TaskStateBadge state={t.state} />

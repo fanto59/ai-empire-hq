@@ -54,6 +54,14 @@ persist (append-only)  ──►  AgentEventBus.publish()
                buildOfficeScene() → OfficeRenderer.update()
 ```
 
+## Live events
+
+The Research Agent worker stores real events in `execution_events` with
+`origin: "live"`: `run.started`, `run.step` (one per model call, with token
+counts), `tool.called` / `tool.result` (web search and fetch), and
+`run.completed` or `run.failed`. Tool use is also written to `audit_logs`
+(`agent.tool.*`, `agent.tool.denied`).
+
 ## What exists now
 
 - Types and envelope (`types.ts`).

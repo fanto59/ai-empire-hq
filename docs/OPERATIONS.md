@@ -110,9 +110,13 @@ Duplicate-job prevention is layered: partial unique index (one active run per
 task), unique idempotency keys, row locks with `SKIP LOCKED`, lease checks on
 every write, and `Idempotency-Key` on task creation.
 
-**No worker runs today.** `AGENT_EXECUTION_ENABLED=false`; nothing calls a
-model provider. A future worker process will loop: `reapExpired →
-enqueueReady → claim → (execute with heartbeats) → complete/fail`.
+**Workers.** The Research Agent worker (`src/backend/execution/research-worker.ts`)
+loops `reapExpired → enqueueReady(research) → claim(research) → execute with
+heartbeats → complete/fail`. It runs only when `AGENT_EXECUTION_ENABLED` and
+`PROVIDER_ANTHROPIC_ENABLED` are `true` and `AEHQ_ANTHROPIC_API_KEY` is set:
+in-process (`AGENT_WORKER=in-process`, needed with the embedded database) or
+as `npm run worker`. Tasks of other kinds are never claimed. See
+[RESEARCH_AGENT.md](RESEARCH_AGENT.md).
 
 ## Test data
 
