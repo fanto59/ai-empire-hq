@@ -1,0 +1,143 @@
+import { createHash } from "node:crypto";
+import { eq } from "drizzle-orm";
+import type { Db } from "@/infrastructure/db/client";
+import { agentPermissions, agents, budgets, businesses, departments, knowledgeDocuments, organizations, projects, sectors } from "@/infrastructure/db/schema";
+import { ownerRequestContext } from "../auth/context";
+import { TaskService, type TransitionRequest } from "../tasks/service";
+
+/**
+ * TEST DATA SEED - creates a clearly marked test organization so the
+ * dashboard, Executive Floor and API have real records to show.
+ *
+ * Everything is fictional and prefixed "Test". No real businesses, people,
+ * accounts or money. Tasks are driven through the real TaskService, so their
+ * states, runs and audit history are produced by the state machine itself.
+ */
+export const TEST_ORG_SLUG = "test-org";
+
+export interface SeedResult {
+  organizationId: string;
+  tasks: number;
+}
+
+export async function seedTestData(db: Db, now: () => Date = () => new Date()): Promise<SeedResult> {
+  const [existing] = await db.select().from(organizations).where(eq(organizations.slug, TEST_ORG_SLUG));
+  if (existing) throw new Error(`Test data already exists (organization "${TEST_ORG_SLUG}"). Reset the database to reseed.`);
+
+  const [org] = await db.insert(organizations).values({ slug: TEST_ORG_SLUG, name: "Test Organization", isTestData: true }).returning();
+  const orgId = org!.id;
+  const [sector] = await db
+    .insert(sectors)
+    .values({ organizationId: orgId, slug: "test-research", name: "Test Research Sector", description: "Fictional sector for development." })
+    .returning();
+  const [bizA, bizB] = await db
+    .insert(businesses)
+    .values([
+      { organizationId: orgId, sectorId: sector!.id, slug: "test-business-a", name: "Test Business A", status: "active" },
+      { organizationId: orgId, sectorId: sector!.id, slug: "test-business-b", name: "Test Business B", status: "planning" },
+    ])
+    .returning();
+  const [dept] = await db.insert(departments).values({ businessId: bizA!.id, slug: "research", name: "Research" }).returning();
+
+  // Initial model roles (adjustable on /models): OpenAI for strategy, Grok for
+  // research, Claude for engineering and complex execution.
+  const agentRows = await db
+    .insert(agents)
+    .values([
+      { organizationId: orgId, businessId: null, slug: "test-chief", displayName: "Test Chief AI Manager", role: "chief-ai-manager", status: "active", modelProvider: "openai", modelName: "gpt-6.2-sol" },
+      { organizationId: orgId, businessId: null, slug: "test-pm", displayName: "Test Central Project Manager", role: "central-project-manager", status: "active", modelProvider: "openai", modelName: "gpt-6.2-sol" },
+      { organizationId: orgId, businessId: bizA!.id, departmentId: dept!.id, slug: "test-research", displayName: "Test Research Agent", role: "specialist", status: "active", modelProvider: "xai", modelName: "grok-4.7" },
+      { organizationId: orgId, businessId: bizB!.id, slug: "test-ops", displayName: "Test Operations Agent", role: "business-lead", status: "active", modelProvider: "anthropic", modelName: "claude-opus-5-5" },
+    ])
+    .returning();
+  const agent = (slug: string) => agentRows.find((a) => a.slug === slug)!.id;
+  await db.insert(agentPermissions).values(
+    agentRows.flatMap((a) =>
+      (["task.read", "task.execute", "approval.request", "knowledge.read"] as const).map((permission) => ({ agentId: a.id, permission, grantedBy: "test-seed" })),
+    ),
+  );
+  // The Chief AI Manager: read organization records, request work from the
+  // Project Manager, write HQ briefings. Nothing that approves or spends.
+  await db.insert(agentPermissions).values(
+    (["org.read", "task.request", "knowledge.write"] as const).map((permission) => ({
+      agentId: agent("test-chief"),
+      permission,
+      grantedBy: "test-seed",
+    })),
+  );
+  // The Research Agent's approved, read-only research capabilities.
+  await db.insert(agentPermissions).values(
+    (["research.web_search", "research.web_fetch", "knowledge.write"] as const).map((permission) => ({
+      agentId: agent("test-research"),
+      permission,
+      grantedBy: "test-seed",
+    })),
+  );
+
+  const [discovery, hqPlan] = await db
+    .insert(projects)
+    .values([
+      { organizationId: orgId, businessId: bizA!.id, slug: "test-sector-discovery", title: "Test: Sector discovery", status: "active", ownerAgentId: agent("test-research") },
+      { organizationId: orgId, businessId: null, slug: "test-hq-planning", title: "Test: HQ planning", status: "active", ownerAgentId: agent("test-pm") },
+    ])
+    .returning();
+
+  const svc = new TaskService(db, { now, recordEvents: false });
+  const ctx = ownerRequestContext(orgId);
+  const make = async (title: string, businessId: string | null, projectId: string | null, steps: TransitionRequest[], extra: Record<string, unknown> = {}) => {
+    const { task } = await svc.createTask(ctx, { title, businessId, projectId, description: "Test data generated by the seed script.", ...extra });
+    for (const step of steps) await svc.transition(ctx, task.id, step);
+    return task.id;
+  };
+  const assign = (agentId: string): TransitionRequest => ({ action: "assign", agentId });
+
+  const criteria = await make("Test: Define sector evaluation criteria", bizA!.id, discovery!.id, [
+    assign(agent("test-research")),
+    { action: "start" },
+    { action: "complete", result: "Test result: four criteria agreed." },
+  ]);
+  const scan = await make("Test: Market scan of sector candidates", bizA!.id, discovery!.id, [assign(agent("test-research")), { action: "start" }], {
+    dependsOn: [criteria],
+    priority: 2,
+  });
+  await make(
+    "Test: Publish findings to the project board",
+    bizA!.id,
+    discovery!.id,
+    [assign(agent("test-research")), { action: "start" }, { action: "wait", approval: { action: "Publish findings", reason: "Test: publishing needs owner approval" } }],
+    { requiresApproval: true },
+  );
+  await make("Test: Collect public pricing examples", bizA!.id, discovery!.id, [
+    assign(agent("test-research")),
+    { action: "start" },
+    { action: "fail", error: "Test failure: example source unavailable." },
+  ], { maxAttempts: 2 });
+  await make("Test: Draft weekly HQ summary", null, hqPlan!.id, [assign(agent("test-pm"))], { priority: 2 });
+  await make("Test: Review next quarter priorities", null, hqPlan!.id, [], { priority: 1 });
+  await make("Test: Prepare onboarding checklist", bizB!.id, null, [assign(agent("test-ops")), { action: "pause", reason: "Test: on hold" }]);
+  await make("Test: Old experiment (no longer needed)", bizB!.id, null, [{ action: "cancel", reason: "Test: superseded" }], { priority: 5 });
+
+  // Usage and budgets: test numbers only, not linked to any financial account.
+  // Budgets start at $0, so no API spending happens until the owner sets one
+  // (npm run budget:set).
+  // No model_usage rows are seeded: usage is recorded only for real API calls.
+  const month = now().toISOString().slice(0, 8) + "01";
+  await db.insert(budgets).values([
+    { organizationId: orgId, businessId: null, periodStart: month, limitMicros: 0 },
+    { organizationId: orgId, businessId: bizA!.id, periodStart: month, limitMicros: 0 },
+  ]);
+
+  // Index the sample knowledge report and link it to the market-scan task.
+  const reportPath = "businesses/sample-business/reports/2026/2026-11-19-sector-candidates-research.md";
+  await db.insert(knowledgeDocuments).values({
+    organizationId: orgId,
+    businessId: bizA!.id,
+    vaultPath: reportPath,
+    kind: "report",
+    title: "Sector candidates research",
+    taskId: scan,
+    checksum: createHash("sha256").update(reportPath).digest("hex"),
+  });
+
+  return { organizationId: orgId, tasks: 8 };
+}
