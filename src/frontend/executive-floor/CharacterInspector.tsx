@@ -10,6 +10,8 @@ export interface CharacterInspectorProps {
   character: PrototypeCharacter;
   snapshot: CharacterSnapshot;
   director: SimulationDirector;
+  /** Real-agent panel shown for the character backed by a real agent. */
+  chief?: React.ReactNode;
   /** Real task records (null when the database is not set up). */
   tasks: readonly TaskSummaryView[] | null;
   testData: boolean;
@@ -17,7 +19,7 @@ export interface CharacterInspectorProps {
   onFollow: () => void;
 }
 
-export function CharacterInspector({ character, snapshot, director, tasks, testData, onClose, onFollow }: CharacterInspectorProps) {
+export function CharacterInspector({ character, snapshot, director, tasks, testData, chief, onClose, onFollow }: CharacterInspectorProps) {
   const a = character.appearance;
   const agentTasks = (tasks ?? []).filter((t) => t.assigneeSlug === character.agentSlug && t.state !== "canceled" && t.state !== "completed");
   const derived = deriveActivity(snapshot.lastEvent ?? undefined);
@@ -54,12 +56,14 @@ export function CharacterInspector({ character, snapshot, director, tasks, testD
           </button>
         </div>
         <p className="mt-3 rounded-md bg-amber-400/5 px-3 py-2 text-xs leading-relaxed text-amber-200/90 ring-1 ring-amber-400/20">
-          Not a real AI agent. This character is animated by a scripted simulation; no model, account, or tool is
-          connected.
+          {chief
+            ? "The character's movement and states are a scripted simulation. Objectives you send below go to the real Chief AI Manager agent."
+            : "Not a real AI agent. This character is animated by a scripted simulation; no model, account, or tool is connected."}
         </p>
       </header>
 
       <div className="flex-1 space-y-5 overflow-y-auto p-4 text-sm">
+        {chief}
         <dl className="grid grid-cols-[7.5rem_1fr] gap-x-3 gap-y-2.5">
           <Field label="Name">
             {character.codename} <span className="text-slate-500">(prototype codename)</span>

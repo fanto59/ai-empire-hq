@@ -59,6 +59,7 @@ Optional: disable Next.js anonymous telemetry on your machine with
 | [docs/VIRTUAL_OFFICE.md](docs/VIRTUAL_OFFICE.md) | Isometric office rendering plan |
 | [docs/AGENT_EVENTS.md](docs/AGENT_EVENTS.md) | Agent execution event contract |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Database, task API, state machine, durable execution |
+| [docs/CHIEF_AI_MANAGER.md](docs/CHIEF_AI_MANAGER.md) | Chief AI Manager agent: objectives → plans, boundaries |
 | [docs/RESEARCH_AGENT.md](docs/RESEARCH_AGENT.md) | Claude-powered Research Agent: setup, limits, credentials |
 | [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) | Knowledge vault, access rules, Obsidian sync design |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud readiness |

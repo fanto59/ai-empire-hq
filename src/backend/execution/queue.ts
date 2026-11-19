@@ -41,6 +41,8 @@ export interface ClaimedRun {
   task: TaskRow;
 }
 
+type TaskKind = (typeof tasks.$inferSelect)["kind"];
+
 const SYSTEM: Actor = { kind: "system", id: "execution-queue" };
 
 export class ExecutionQueue {
@@ -68,7 +70,7 @@ export class ExecutionQueue {
   }
 
   /** Queues every assigned task that has no active run and whose dependencies are done. */
-  async enqueueReady(options: { organizationId?: string; limit?: number; kinds?: readonly ("general" | "research")[] } = {}): Promise<number> {
+  async enqueueReady(options: { organizationId?: string; limit?: number; kinds?: readonly TaskKind[] } = {}): Promise<number> {
     const candidates = await this.db
       .select({ id: tasks.id })
       .from(tasks)
@@ -98,7 +100,7 @@ export class ExecutionQueue {
    * Claims the oldest available run. `kinds` restricts which task kinds this
    * worker can execute (e.g. a research worker only claims research tasks).
    */
-  async claim(workerId: string, options: { kinds?: readonly ("general" | "research")[] } = {}): Promise<ClaimedRun | null> {
+  async claim(workerId: string, options: { kinds?: readonly TaskKind[] } = {}): Promise<ClaimedRun | null> {
     if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(workerId)) throw new ServiceError("invalid-input", "Invalid worker id.");
     const now = this.now();
     return this.db.transaction(async (tx) => {

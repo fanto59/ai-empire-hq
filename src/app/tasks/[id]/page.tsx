@@ -8,6 +8,7 @@ import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/t
 import { formatUsd } from "@/agents/research/pricing";
 import { noteHref } from "@/frontend/knowledge/Markdown";
 import { AutoRefresh } from "@/frontend/tasks/AutoRefresh";
+import { PlanView, type PlanData } from "@/frontend/tasks/PlanView";
 
 export const metadata: Metadata = { title: "Task · AI Empire HQ" };
 export const dynamic = "force-dynamic";
@@ -100,6 +101,17 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               </ol>
               <p className="mt-3 text-xs text-slate-500">From the append-only audit log.</p>
             </section>
+
+            {(() => {
+              const done = [...detail.events].reverse().find((e) => e.type === "run.completed");
+              const plan = (done?.payload as { plan?: PlanData } | undefined)?.plan;
+              return plan ? (
+                <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+                  <h2 className="mb-3 text-sm font-semibold tracking-wide text-slate-100 uppercase">Proposed execution plan</h2>
+                  <PlanView plan={plan} />
+                </section>
+              ) : null;
+            })()}
 
             {detail.events.length > 0 && (
               <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">

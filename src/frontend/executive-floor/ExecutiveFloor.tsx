@@ -11,6 +11,8 @@ import { SIM_SCRIPTS } from "../office/sim/scripts";
 import type { TaskSummaryView } from "@/domain/task-view";
 import { CHARACTER_STATES, CHARACTER_STATE_LABELS } from "../office/sim/types";
 import { CharacterInspector } from "./CharacterInspector";
+import { ChiefPanel } from "./ChiefPanel";
+import type { ChiefPanelData, SubmitGoalAction } from "./chief-types";
 import { FloorCanvas } from "./FloorCanvas";
 import { FloorOverviewPanel } from "./FloorOverviewPanel";
 import { ProjectBoardPanel } from "./ProjectBoardPanel";
@@ -29,12 +31,15 @@ export interface ExecutiveFloorProps {
   /** Real task records from the database; null when the database is not set up. */
   tasks: TaskSummaryView[] | null;
   testData: boolean;
+  /** The real Chief AI Manager agent (panel data + goal submission). */
+  chief: ChiefPanelData | null;
+  submitGoal: SubmitGoalAction;
 }
 
 /** How often the server-rendered task list is refreshed while visible. */
 const TASK_REFRESH_MS = 15_000;
 
-export function ExecutiveFloor({ tasks, testData }: ExecutiveFloorProps) {
+export function ExecutiveFloor({ tasks, testData, chief, submitGoal }: ExecutiveFloorProps) {
   const router = useRouter();
   // Deterministic and pure, so it is safe to construct during SSR too; the
   // UI only shows simulation-relative times (T+mm:ss), never wall-clock.
@@ -61,14 +66,16 @@ export function ExecutiveFloor({ tasks, testData }: ExecutiveFloorProps) {
     if (tasks) handle?.setTasks(tasks);
   }, [handle, tasks]);
 
+  const chiefWorking = Boolean(chief?.objectives[0] && ["queued", "assigned", "running"].includes(chief.objectives[0].state));
+
   // Re-render the server component to pick up task changes (no client-side
   // database access, no API token in the browser).
   useEffect(() => {
     const id = window.setInterval(() => {
       if (document.visibilityState === "visible") router.refresh();
-    }, TASK_REFRESH_MS);
+    }, chiefWorking ? 4_000 : TASK_REFRESH_MS);
     return () => window.clearInterval(id);
-  }, [router]);
+  }, [router, chiefWorking]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -107,9 +114,9 @@ export function ExecutiveFloor({ tasks, testData }: ExecutiveFloorProps) {
           Simulation mode
         </span>
         <span>
-          Prototype characters driven by scripted, clearly labelled simulation events. No AI agents, model providers,
-          or business accounts are connected. The project board shows real task records from the database
-          {testData ? " (test data)" : ""}.
+          The characters&apos; movement is a scripted simulation. Real agents (the Chief AI Manager and the Research
+          Agent) act only on work you send them, and their panels show their real events. The project board shows real
+          task records from the database{testData ? " (test data)" : ""}.
         </span>
       </div>
 
@@ -186,6 +193,7 @@ export function ExecutiveFloor({ tasks, testData }: ExecutiveFloorProps) {
                 director={director}
                 tasks={tasks}
                 testData={testData}
+                chief={character.agentSlug === "test-chief" && chief ? <ChiefPanel data={chief} submitGoal={submitGoal} /> : undefined}
                 onClose={() => setPanel({ kind: "overview" })}
                 onFollow={() => handle?.focusCharacter(character.id)}
               />

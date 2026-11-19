@@ -49,10 +49,14 @@ export const agentPermission = pgEnum("agent_permission", [
   // Read-only research capabilities (Anthropic server-side tools).
   "research.web_search",
   "research.web_fetch",
+  // Chief AI Manager: read-only access to organization records, and the
+  // right to REQUEST (not approve or execute) work from the Project Manager.
+  "org.read",
+  "task.request",
 ]);
 export const projectStatus = pgEnum("project_status", ["proposed", "active", "on-hold", "done", "canceled"]);
 /** What kind of work a task is; workers only execute kinds they support. */
-export const taskKind = pgEnum("task_kind", ["general", "research"]);
+export const taskKind = pgEnum("task_kind", ["general", "research", "executive"]);
 export const taskState = pgEnum("task_state", ["queued", "assigned", "running", "waiting", "paused", "completed", "failed", "canceled"]);
 export const runStatus = pgEnum("run_status", ["queued", "running", "suspended", "succeeded", "failed", "timed_out", "canceled"]);
 export const approvalStatus = pgEnum("approval_status", ["pending", "approved", "rejected", "expired"]);
@@ -285,6 +289,22 @@ export const approvalRequests = pgTable(
       .where(sql`${t.status} = 'pending'`),
   ],
 );
+
+/**
+ * Persistent working context of an agent on one task (the model conversation
+ * so far). Saved after every step so a retried attempt resumes where the
+ * previous one stopped instead of starting over.
+ */
+export const agentTaskContexts = pgTable("agent_task_contexts", {
+  taskId: uuid("task_id")
+    .primaryKey()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  messages: jsonb("messages").notNull(),
+  /** Count of tool requests already made (enforces per-task caps across attempts). */
+  workRequests: integer("work_requests").notNull().default(0),
+  updatedAt: updatedAt(),
+});
 
 // ---- knowledge, usage, budgets, audit -----------------------------------------------
 

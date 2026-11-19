@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { eq } from "drizzle-orm";
+import { ChiefError } from "@/agents/chief/agent";
 import { runResearch, ResearchError, type Messages } from "@/agents/research/agent";
 import { formatUsd } from "@/agents/research/pricing";
 import { renderReportMarkdown } from "@/agents/research/report";
@@ -202,6 +203,7 @@ export class ResearchWorker {
 export function classify(error: unknown, spend: SpendGuard | null): { message: string; retryable: boolean; code: string } {
   const spent = spend ? ` (spent ${formatUsd(spend.spentMicros)} before stopping)` : "";
   if (error instanceof BudgetExceededError) return { message: `Spending limit reached: ${error.message}${spent}`, retryable: false, code: "BUDGET_EXCEEDED" };
+  if (error instanceof ChiefError) return { message: `${error.message}${spent}`, retryable: error.retryable, code: error.code.toUpperCase() };
   if (error instanceof ResearchError) return { message: `${error.message}${spent}`, retryable: error.retryable, code: error.code.toUpperCase() };
   if (error instanceof ServiceError) return { message: error.message, retryable: false, code: error.code.toUpperCase() };
   if (error instanceof KnowledgeError) return { message: `Could not save the report: ${error.message}`, retryable: false, code: "KNOWLEDGE_ERROR" };
@@ -217,8 +219,8 @@ export function classify(error: unknown, spend: SpendGuard | null): { message: s
   return { message: "Unexpected worker error (see server logs).", retryable: false, code: "INTERNAL" };
 }
 
-/** Polls for research work until stopped. Used in-process and by scripts/worker.ts. */
-export function startResearchWorkerLoop(worker: ResearchWorker, intervalMs = 5_000): () => void {
+/** Polls for work until stopped. Used in-process and by scripts/worker.ts. */
+export function startResearchWorkerLoop(worker: { tick(): Promise<"idle" | "processed"> }, intervalMs = 5_000): () => void {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const loop = async () => {

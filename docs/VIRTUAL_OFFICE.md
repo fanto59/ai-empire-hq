@@ -86,6 +86,12 @@ Each prototype character is linked to a seeded *test* agent record
 (`agentSlug`), and the inspector lists that agent's tasks. Character
 movement and states remain a labelled simulation.
 
+## The Chief AI Manager panel
+
+Clicking ORION shows a panel backed by the REAL Chief AI Manager agent:
+submit an objective, then see its live events, cost, errors and final plan
+from the database. ORION's movement stays simulated and is labelled so.
+
 ## Honesty rules for the prototype
 
 - Characters have non-human codenames and a **SIM** chip on the canvas.

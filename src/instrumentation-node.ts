@@ -10,10 +10,11 @@ export async function startInProcessWorker() {
     console.warn(`[research-worker] not started: ${status.reason}`);
     return;
   }
-  const [{ getDatabase }, { getKnowledgeService }, { ResearchWorker, startResearchWorkerLoop }] = await Promise.all([
+  const [{ getDatabase }, { getKnowledgeService }, { ResearchWorker, startResearchWorkerLoop }, { ChiefWorker }] = await Promise.all([
     import("@/backend/db"),
     import("@/backend/knowledge"),
     import("@/backend/execution/research-worker"),
+    import("@/backend/execution/chief-worker"),
   ]);
   const db = await getDatabase();
   if (!db) {
@@ -22,14 +23,12 @@ export async function startInProcessWorker() {
   }
   const g = globalThis as unknown as { __aehqWorkerStop?: () => void };
   g.__aehqWorkerStop?.(); // dev hot reload: never run two loops
-  g.__aehqWorkerStop = startResearchWorkerLoop(
-    new ResearchWorker({
-      db,
-      knowledge: getKnowledgeService(),
-      messages: createAnthropicMessages,
-      config: config.research,
-      workerId: `web-${process.pid}`,
-    }),
-  );
-  console.log(`[research-worker] running in-process (model ${config.research.model}).`);
+  const shared = { db, knowledge: getKnowledgeService(), messages: createAnthropicMessages };
+  const stopResearch = startResearchWorkerLoop(new ResearchWorker({ ...shared, config: config.research, workerId: `web-research-${process.pid}` }));
+  const stopChief = startResearchWorkerLoop(new ChiefWorker({ ...shared, config: config.research, workerId: `web-chief-${process.pid}` }));
+  g.__aehqWorkerStop = () => {
+    stopResearch();
+    stopChief();
+  };
+  console.log(`[workers] Research Agent and Chief AI Manager running in-process (model ${config.research.model}).`);
 }

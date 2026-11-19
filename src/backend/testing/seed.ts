@@ -54,6 +54,15 @@ export async function seedTestData(db: Db, now: () => Date = () => new Date()): 
       (["task.read", "task.execute", "approval.request", "knowledge.read"] as const).map((permission) => ({ agentId: a.id, permission, grantedBy: "test-seed" })),
     ),
   );
+  // The Chief AI Manager: read organization records, request work from the
+  // Project Manager, write HQ briefings. Nothing that approves or spends.
+  await db.insert(agentPermissions).values(
+    (["org.read", "task.request", "knowledge.write"] as const).map((permission) => ({
+      agentId: agent("test-chief"),
+      permission,
+      grantedBy: "test-seed",
+    })),
+  );
   // The Research Agent's approved, read-only research capabilities.
   await db.insert(agentPermissions).values(
     (["research.web_search", "research.web_fetch", "knowledge.write"] as const).map((permission) => ({

@@ -9,6 +9,7 @@
 import { hostname } from "node:os";
 import { anthropicStatus, createAnthropicMessages } from "@/agents/providers/anthropic";
 import { ResearchWorker, startResearchWorkerLoop } from "@/backend/execution/research-worker";
+import { ChiefWorker } from "@/backend/execution/chief-worker";
 import { getKnowledgeService } from "@/backend/knowledge";
 import { loadRuntimeConfig } from "@/infrastructure/config/env";
 import { migrateDatabase, openDatabase } from "@/infrastructure/db/client";
@@ -23,15 +24,14 @@ if (!config.databaseUrl) throw new Error("DATABASE_URL is not set.");
 const handle = await openDatabase(config.databaseUrl);
 if (handle.kind === "pglite") await migrateDatabase(handle);
 
-const worker = new ResearchWorker({
-  db: handle.db,
-  knowledge: getKnowledgeService(),
-  messages: createAnthropicMessages,
-  config: config.research,
-  workerId: `worker-${hostname().replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 30)}-${process.pid}`,
-});
-const stop = startResearchWorkerLoop(worker);
-console.log(`Research worker running (model ${config.research.model}). Press Ctrl+C to stop.`);
+const id = `${hostname().replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 30)}-${process.pid}`;
+const shared = { db: handle.db, knowledge: getKnowledgeService(), messages: createAnthropicMessages, config: config.research };
+const stops = [
+  startResearchWorkerLoop(new ResearchWorker({ ...shared, workerId: `research-${id}` })),
+  startResearchWorkerLoop(new ChiefWorker({ ...shared, workerId: `chief-${id}` })),
+];
+const stop = () => stops.forEach((s) => s());
+console.log(`Research Agent and Chief AI Manager workers running (model ${config.research.model}). Press Ctrl+C to stop.`);
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, async () => {

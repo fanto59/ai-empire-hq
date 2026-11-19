@@ -16,8 +16,8 @@ import { applyTransition, lockTask, type Actor, type RunRow, type TaskRow } from
  */
 export interface CreateTaskInput {
   title: string;
-  /** "research" tasks are executed by the Research Agent worker. */
-  kind?: "general" | "research";
+  /** "research" → Research Agent worker; "executive" → Chief AI Manager worker. */
+  kind?: "general" | "research" | "executive";
   description?: string;
   businessId: string | null;
   projectId?: string | null;
@@ -328,7 +328,13 @@ function validateCreate(input: CreateTaskInput) {
   dependsOn.forEach((d) => assertUuid(d, "dependsOn[]"));
   if (input.requiresApproval !== undefined && typeof input.requiresApproval !== "boolean") throw new ServiceError("invalid-input", "requiresApproval must be true or false.");
   const kind = input.kind ?? "general";
-  if (kind !== "general" && kind !== "research") throw new ServiceError("invalid-input", "kind must be general or research.");
+  if (kind !== "general" && kind !== "research" && kind !== "executive") throw new ServiceError("invalid-input", "kind must be general, research or executive.");
+  if (kind === "executive") {
+    if (businessId !== null) throw new ServiceError("invalid-input", "Executive objectives are headquarters tasks (businessId must be null).");
+    if (description.trim().length < 10 || description.length > 4000) {
+      throw new ServiceError("invalid-input", "An objective needs 10-4,000 characters in its description.");
+    }
+  }
   if (kind === "research") {
     if (businessId === null) throw new ServiceError("invalid-input", "Research tasks belong to a business.");
     if (description.trim().length < 10 || description.length > 2000) {

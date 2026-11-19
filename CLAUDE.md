@@ -11,9 +11,10 @@ a Central Project Manager, isolated business sectors, animated isometric AI
 employees (PixiJS), Obsidian knowledge, and Claude / OpenAI / Grok model
 providers.
 
-**Current phase: first real agent.** The Research Agent calls the Claude API
-(owner-approved) with read-only web research; everything else is test data and
-nothing else external is connected.
+**Current phase: first real agents.** The Research Agent (read-only web
+research) and the Chief AI Manager (reads organization records, proposes plans)
+call the Claude API (owner-approved); all data is test data and nothing else
+external is connected.
 
 ## Hard rules (never break these)
 
@@ -42,6 +43,10 @@ nothing else external is connected.
     credentials or other `ANTHROPIC_*` variables. Agents get an explicit tool
     allowlist: no shell, no filesystem, no database access, no messaging.
     Every paid call reserves budget first (SpendGuard).
+11. **Agents recommend; people decide.** No agent may approve spending, change
+    budgets or permissions, sign or execute contracts, or decide approval
+    requests. Never add such a tool to an agent; route those items to the
+    owner (see docs/CHIEF_AI_MANAGER.md).
 
 ## Stack
 
@@ -128,4 +133,5 @@ Import rules:
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
 - `docs/RESEARCH_AGENT.md` - the Claude-powered Research Agent: flow, limits, credentials
+- `docs/CHIEF_AI_MANAGER.md` - the Chief AI Manager agent: tools, boundaries, persistent context
 - `docs/DEPLOYMENT.md` - cloud-readiness notes (no deployment yet)
