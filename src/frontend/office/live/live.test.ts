@@ -18,6 +18,7 @@ const ev = (type: LiveEvent["type"], payload: LiveEvent["payload"] = {}, o: Part
   occurredAt: new Date(Date.UTC(2026, 10, 19, 10, 0, streamId)).toISOString(),
   sequence: 0,
   runId: "run-1",
+  runCreatedAt: "2026-11-19T10:00:00.000Z",
   taskId: "task-1",
   agentId: AGENT,
   businessId: "biz",
@@ -60,11 +61,15 @@ test("machine: duplicates, replays and stale runs are ignored (idempotent replay
   assert.equal(reduceEvent(s, step).outcome, "duplicate");
   assert.equal(reduceEvent(s, { ...started, origin: "replay" }).outcome, "duplicate");
   // A newer run replaces the old one; late events of the old run are stale.
-  const run2 = ev("run.started", {}, { runId: "run-2", sequence: 0 });
+  const run2 = ev("run.started", {}, { runId: "run-2", runCreatedAt: "2026-11-19T10:05:00.000Z", sequence: 0 });
   s = reduceEvent(s, run2).state;
   assert.equal(s.runId, "run-2");
-  const late = { ...ev("run.failed", { errorCode: "X" }, { sequence: 2 }), occurredAt: started.occurredAt };
+  assert.deepEqual(s.events.map((e) => e.runId), ["run-2"], "the event list shows the current run");
+  // The older run fails LATER (e.g. reaped after the new run started): still stale.
+  const late = ev("run.failed", { errorCode: "WORKER_LOST" }, { sequence: 2 });
+  assert.ok(late.occurredAt > run2.occurredAt);
   assert.equal(reduceEvent(s, late).outcome, "stale");
+  assert.equal(s.phase, "ready");
   assert.equal(reduceEvent(s, ev("run.step", {}, { agentId: "someone-else" })).outcome, "ignored");
 });
 

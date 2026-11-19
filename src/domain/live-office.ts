@@ -31,6 +31,8 @@ export interface LiveEvent {
   /** Per-run sequence (gap-free). */
   sequence: number;
   runId: string;
+  /** When the run was created: orders runs, so a late event of an older run never replaces a newer one. */
+  runCreatedAt: string;
   taskId: string;
   agentId: string | null;
   businessId: string | null;

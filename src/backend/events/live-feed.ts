@@ -27,7 +27,7 @@ const PAYLOAD_FIELDS: Record<string, readonly string[]> = {
   "run.canceled": ["reason", "by"],
 };
 
-export function toLiveEvent(row: EventRow, businessId: string | null, origin: LiveEvent["origin"]): LiveEvent | null {
+export function toLiveEvent(row: EventRow, businessId: string | null, runCreatedAt: Date, origin: LiveEvent["origin"]): LiveEvent | null {
   if (!TYPES.has(row.type) || row.origin !== "live") return null;
   const src = (row.payload ?? {}) as Record<string, unknown>;
   const payload: LiveEvent["payload"] = {};
@@ -44,6 +44,7 @@ export function toLiveEvent(row: EventRow, businessId: string | null, origin: Li
     occurredAt: row.occurredAt.toISOString(),
     sequence: row.sequence,
     runId: row.runId,
+    runCreatedAt: runCreatedAt.toISOString(),
     taskId: row.taskId,
     agentId: row.agentId,
     businessId,
@@ -66,13 +67,14 @@ function visible(ctx: RequestContext): SQL {
 export async function readEventsAfter(db: Db, ctx: RequestContext, cursor: number, opts: { limit?: number; lookback?: number; origin?: LiveEvent["origin"] } = {}): Promise<LiveEvent[]> {
   const from = Math.max(0, cursor - (opts.lookback ?? 0));
   const rows = await db
-    .select({ e: executionEvents, businessId: tasks.businessId })
+    .select({ e: executionEvents, businessId: tasks.businessId, runCreatedAt: executionRuns.createdAt })
     .from(executionEvents)
     .innerJoin(tasks, eq(tasks.id, executionEvents.taskId))
+    .innerJoin(executionRuns, eq(executionRuns.id, executionEvents.runId))
     .where(and(visible(ctx), gt(executionEvents.streamId, from)))
     .orderBy(asc(executionEvents.streamId))
     .limit(opts.limit ?? 200);
-  return rows.map((r) => toLiveEvent(r.e, r.businessId, opts.origin ?? "live")).filter((e): e is LiveEvent => e !== null);
+  return rows.map((r) => toLiveEvent(r.e, r.businessId, r.runCreatedAt, opts.origin ?? "live")).filter((e): e is LiveEvent => e !== null);
 }
 
 /** Highest stream cursor visible to the caller (0 when there are no events). */
@@ -165,14 +167,15 @@ export async function loadSnapshot(db: Db, ctx: RequestContext, now = new Date()
       .limit(1);
     if (!latest) continue;
     const rows = await db
-      .select({ e: executionEvents, businessId: tasks.businessId })
+      .select({ e: executionEvents, businessId: tasks.businessId, runCreatedAt: executionRuns.createdAt })
       .from(executionEvents)
       .innerJoin(tasks, eq(tasks.id, executionEvents.taskId))
+      .innerJoin(executionRuns, eq(executionRuns.id, executionEvents.runId))
       .where(and(visible(ctx), eq(executionEvents.runId, latest.runId), sql`${executionEvents.streamId} <= ${cursor}`))
       .orderBy(asc(executionEvents.sequence))
       .limit(200);
     for (const r of rows) {
-      const ev = toLiveEvent(r.e, r.businessId, "replay");
+      const ev = toLiveEvent(r.e, r.businessId, r.runCreatedAt, "replay");
       if (ev) events.push(ev);
     }
   }

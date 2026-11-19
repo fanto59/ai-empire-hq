@@ -21,9 +21,10 @@ import type { CharacterState } from "../sim/types";
  *   health: suspended   paused            (task paused by a person)
  *
  * Ordering and replay: within a run, events with a sequence at or below the
- * last applied one are duplicates and are ignored. Events of an older run
- * (earlier than the current run's first event) are stale and ignored. So
- * replays after refresh or reconnect are idempotent.
+ * last applied one are duplicates and are ignored. Events of an OLDER run
+ * (created before the current run) are stale and ignored, even when they
+ * arrive later (e.g. the reaper failing two lost runs at once). So replays
+ * after refresh or reconnect are idempotent.
  */
 export type LivePhase = "offline" | "ready" | "working" | "using-tool" | "awaiting-approval" | "paused" | "completed" | "failed" | "canceled";
 
@@ -34,6 +35,8 @@ export interface AgentLiveState {
   taskId: string | null;
   /** occurredAt of the first event seen for the current run. */
   runStartedAt: string | null;
+  /** Creation time of the current run (orders runs). */
+  runCreatedAt: string | null;
   lastSequence: number;
   lastEvent: LiveEvent | null;
   tool: string | null;
@@ -45,7 +48,7 @@ export interface AgentLiveState {
   notePath: string | null;
   /** The worker stopped reporting (lease/deadline passed) - shown, never "fixed" by guessing. */
   stalled: boolean;
-  /** Recent events, oldest first (bounded). */
+  /** Events of the current run, oldest first (bounded). */
   events: LiveEvent[];
 }
 
@@ -61,6 +64,7 @@ export function initialAgentState(agentId: string): AgentLiveState {
     runId: null,
     taskId: null,
     runStartedAt: null,
+    runCreatedAt: null,
     lastSequence: -1,
     lastEvent: null,
     tool: null,
@@ -81,15 +85,15 @@ const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 export function reduceEvent(s: AgentLiveState, e: LiveEvent): { state: AgentLiveState; outcome: ReduceOutcome } {
   if (e.agentId !== s.agentId) return { state: s, outcome: "ignored" };
   if (e.runId === s.runId && e.sequence <= s.lastSequence) return { state: s, outcome: "duplicate" };
-  if (e.runId !== s.runId && s.runStartedAt !== null && e.occurredAt < s.runStartedAt) return { state: s, outcome: "stale" };
+  if (e.runId !== s.runId && s.runCreatedAt !== null && e.runCreatedAt < s.runCreatedAt) return { state: s, outcome: "stale" };
 
   const newRun = e.runId !== s.runId;
   const n: AgentLiveState = newRun
-    ? { ...s, runId: e.runId, taskId: e.taskId, runStartedAt: e.occurredAt, tool: null, approval: null, error: null, summary: null, notePath: null, stalled: false, provider: null, model: null }
+    ? { ...s, runId: e.runId, taskId: e.taskId, runStartedAt: e.occurredAt, runCreatedAt: e.runCreatedAt, events: [], tool: null, approval: null, error: null, summary: null, notePath: null, stalled: false, provider: null, model: null }
     : { ...s };
   n.lastSequence = e.sequence;
   n.lastEvent = e;
-  n.events = [...s.events, e].slice(-MAX_EVENTS);
+  n.events = [...n.events, e].slice(-MAX_EVENTS);
   const p = e.payload;
 
   switch (e.type) {
