@@ -30,3 +30,6 @@ next-env.d.ts
 # Obsidian app state inside vaults (per-device settings, caches)
 **/.obsidian/
 **/.trash/
+
+# local embedded database (PGlite)
+/.data/

@@ -1,7 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
-import { PROJECT_BOARD_COLUMNS } from "../floor/executive-floor";
+import { BOARD_COLUMNS, type TaskSummaryView } from "@/domain/task-view";
 import type { FloorPlan, FurnitureItem } from "../floor/types";
-import type { SimTask } from "../sim/types";
 import { BIAS, tileKey, zIndexFor } from "./depth";
 import { COL_WALL_TEXT_SKEW, iso, isoBox, pts, type BoxRect } from "./geometry";
 import { PALETTE, UI_FONT, shade } from "./palette";
@@ -189,13 +188,14 @@ function drawChair(item: FurnitureItem, c: number, r: number): Graphics[] {
 }
 
 /**
- * The executive project board: five columns, one per board tile. Card
- * colors reflect the simulated task owner; only the card layer redraws.
+ * The executive project board: five columns, one per board tile, showing
+ * REAL task records from the database. Card colors reflect the assignee;
+ * only the card layer redraws, and only when the task list changes.
  */
 export class ProjectBoardView {
   readonly pieces: Container[] = [];
   private readonly cardLayers: Graphics[] = [];
-  private lastTasks: readonly SimTask[] | null = null;
+  private lastTasks: readonly TaskSummaryView[] | null = null;
 
   private readonly item: FurnitureItem;
   private readonly ownerColors: Record<string, number>;
@@ -226,7 +226,7 @@ export class ProjectBoardView {
       if (i > 0) g.poly(this.face(c, 0, 0.015, 17, 76)).fill({ color: PALETTE.boardFrame, alpha: 0.35 });
       container.addChild(g);
 
-      const column = PROJECT_BOARD_COLUMNS[i];
+      const column = BOARD_COLUMNS[i];
       if (column) {
         const label = new Text({
           text: column.label.toUpperCase(),
@@ -252,22 +252,22 @@ export class ProjectBoardView {
     return pts(iso(c + u0, row, z0), iso(c + u1, row, z0), iso(c + u1, row, z1), iso(c + u0, row, z1));
   }
 
-  update(tasks: readonly SimTask[]): void {
+  update(tasks: readonly TaskSummaryView[]): void {
     if (tasks === this.lastTasks) return;
     this.lastTasks = tasks;
     const { col } = this.item.area;
-    PROJECT_BOARD_COLUMNS.forEach((column, i) => {
+    BOARD_COLUMNS.forEach((column, i) => {
       const g = this.cardLayers[i];
       if (!g) return;
       g.clear();
-      const inColumn = tasks.filter((t) => t.status === column.status).slice(0, 4);
+      const inColumn = tasks.filter((t) => column.states.includes(t.state)).slice(0, 4);
       inColumn.forEach((task, n) => {
         const z1 = 59 - n * 11;
         const z0 = z1 - 9;
         const c = col + i;
         g.poly(this.face(c, 0.08, 0.92, z0, z1)).fill(0xffffff);
         g.poly(this.face(c, 0.08, 0.92, z0, z1)).stroke({ width: 0.6, color: 0xcbd5e1 });
-        g.poly(this.face(c, 0.08, 0.16, z0, z1)).fill(this.ownerColors[task.ownerId] ?? PALETTE.metal);
+        g.poly(this.face(c, 0.08, 0.16, z0, z1)).fill((task.assigneeSlug ? this.ownerColors[task.assigneeSlug] : undefined) ?? PALETTE.metal);
         g.poly(this.face(c, 0.22, 0.8, z1 - 3.5, z1 - 2.2)).fill({ color: 0x64748b, alpha: 0.7 });
         g.poly(this.face(c, 0.22, 0.6, z0 + 2.2, z0 + 3.4)).fill({ color: 0x94a3b8, alpha: 0.6 });
       });

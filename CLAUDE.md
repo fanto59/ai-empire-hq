@@ -11,7 +11,8 @@ a Central Project Manager, isolated business sectors, animated isometric AI
 employees (PixiJS), Obsidian knowledge, and Claude / OpenAI / Grok model
 providers.
 
-**Current phase: foundation only.** Nothing external is connected.
+**Current phase: foundation + operational backend with test data.** Nothing
+external is connected; no agent executes anything.
 
 ## Hard rules (never break these)
 
@@ -38,6 +39,7 @@ providers.
 
 - Next.js 16 (App Router, Turbopack) + React 19 + TypeScript (strict)
 - PixiJS 8 for the interactive virtual office (client-only, dynamic import)
+- PostgreSQL + Drizzle ORM (`pg` driver; embedded PGlite for dev/tests)
 - Tailwind CSS v4 (via `@tailwindcss/postcss`, config lives in `globals.css`)
 - ESLint 9 flat config (`eslint-config-next`)
 - Node 22.18+ (`.nvmrc`), npm
@@ -54,6 +56,10 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # eslint .
 npm test             # unit tests (src/**/*.test.ts)
 npm run knowledge:seed  # regenerate the sample knowledge vault
+npm run db:setup     # migrate + seed TEST data (embedded DB) — run before dev
+npm run db:migrate   # apply migrations (explicit step for real PostgreSQL)
+npm run db:generate  # create a migration after editing the schema
+npm run db:token     # print a test API token once
 npm run build        # production build (.next/standalone output)
 npm start            # serve the production build
 npm run check        # typecheck + lint + test + build (run before every PR)
@@ -69,9 +75,10 @@ src/
   backend/         Server-only services, repositories (ports), event bus
   agents/          Agent contracts: events/, providers/, roles/
   domain/          Shared, framework-free types (the data model)
-  infrastructure/  Config, security headers, future persistence adapters
+  infrastructure/  Config, security headers, db/ (Drizzle schema, client)
+drizzle/           SQL migrations (generated; commit them, never edit applied ones)
 knowledge/         sample-vault/ (committed demo notes; real vaults go in vaults/)
-scripts/           test/ (test-runner alias hooks), knowledge/ (sample seed)
+scripts/           test/ (alias hooks), knowledge/ (sample seed), db/ (migrate, seed, token)
 docs/              Architecture, security, data model, office, events, knowledge, deploy
 ```
 
@@ -85,6 +92,10 @@ Import rules:
 ## Conventions
 
 - Every business-owned record carries `businessId`; every query is scoped by it.
+- Task state changes go ONLY through `applyTransition` (src/backend/tasks/engine.ts)
+  inside a transaction with the task row locked. Never update `tasks.state` directly.
+- UIs read tasks from the database (server-side), never from hard-coded arrays.
+- Seed and test data must be fictional and marked (`is_test_data`, "Test:" titles).
 - Knowledge notes go through `src/backend/knowledge` only (never raw `fs`), with
   an access context. Sync to Obsidian stays disabled until the owner approves.
 - Agent "activity" is derived from execution events (`deriveActivity`), never
@@ -102,4 +113,5 @@ Import rules:
 - `docs/VIRTUAL_OFFICE.md` - isometric rendering architecture (PixiJS plan)
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
+- `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
 - `docs/DEPLOYMENT.md` - cloud-readiness notes (no deployment yet)

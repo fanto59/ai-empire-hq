@@ -8,6 +8,8 @@ import { RoleCard } from "@/frontend/components/RoleCard";
 import { SystemStatus } from "@/frontend/components/SystemStatus";
 import { OfficeViewport, buildOfficeScene } from "@/frontend/office";
 import { noteHref } from "@/frontend/knowledge/Markdown";
+import { TASK_STATES } from "@/domain/task-lifecycle";
+import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
 import { KindBadge, SampleBadge, scopeLabel } from "@/frontend/knowledge/NoteBadges";
 
 // Runtime config is read per request (not baked in at build time).
@@ -49,6 +51,44 @@ export default async function HeadquartersPage() {
               </span>
               <span aria-hidden className="text-sky-300">→</span>
             </Link>
+          </Panel>
+
+          <Panel title="Tasks" subtitle="Live records from the operational database.">
+            {!overview.tasks ? (
+              <DatabaseSetupNotice />
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {overview.tasks.isTestData && <TestDataBadge />}
+                  {TASK_STATES.map((s) => {
+                    const n = overview.tasks!.items.filter((t) => t.state === s).length;
+                    return n > 0 ? (
+                      <Link key={s} href={`/tasks?state=${s}`} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200">
+                        <TaskStateBadge state={s} />
+                        <span className="tabular-nums">{n}</span>
+                      </Link>
+                    ) : null;
+                  })}
+                </div>
+                <ul className="divide-y divide-slate-800">
+                  {overview.tasks.items
+                    .filter((t) => t.state !== "canceled" && t.state !== "completed")
+                    .slice(0, 6)
+                    .map((t) => (
+                      <li key={t.id}>
+                        <Link href={`/tasks/${t.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 hover:text-white">
+                          <TaskStateBadge state={t.state} />
+                          <span className="min-w-0 flex-1 text-slate-200">{t.title}</span>
+                          <span className="text-xs text-slate-500">{t.assigneeName ?? "Unassigned"}</span>
+                        </Link>
+                      </li>
+                    ))}
+                </ul>
+                <Link href="/tasks" className="mt-3 inline-block text-sm text-sky-300 hover:text-sky-200">
+                  All tasks →
+                </Link>
+              </>
+            )}
           </Panel>
 
           <Panel title="Knowledge" subtitle={`${overview.knowledge.total} notes in the local vault · sync ${overview.knowledge.syncState}`}>

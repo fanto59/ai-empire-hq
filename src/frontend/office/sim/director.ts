@@ -16,8 +16,6 @@ import type {
   SimEmit,
   SimScript,
   SimStep,
-  SimTask,
-  SimTaskStatus,
 } from "./types";
 import { CHARACTER_STATE_LABELS } from "./types";
 
@@ -36,7 +34,6 @@ export interface DirectorOptions {
   plan: FloorPlan;
   cast: readonly PrototypeCharacter[];
   scripts: readonly SimScript[];
-  tasks: readonly SimTask[];
   /** Wall-clock epoch used to timestamp simulated events. */
   startEpochMs?: number;
   walkTilesPerSecond?: number;
@@ -53,7 +50,6 @@ interface CharacterRecord {
   path: TilePoint[];
   waypoint: Waypoint | null;
   destination: Waypoint | null;
-  currentTaskId: string | null;
   stepNote: string;
   history: HistoryEntry[];
   lastEvent: AgentExecutionEvent | null;
@@ -64,19 +60,10 @@ interface CharacterRecord {
 
 const MAX_TICK_MS = 250;
 
-const TASK_STATUS_FOR_STATE: Partial<Record<CharacterState, SimTaskStatus>> = {
-  working: "in-progress",
-  collaborating: "in-progress",
-  "waiting-approval": "awaiting-approval",
-  completed: "done",
-  failed: "blocked",
-};
-
 export class SimulationDirector {
   private readonly grid: NavGrid;
   private readonly waypoints: Map<string, Waypoint>;
   private readonly records = new Map<string, CharacterRecord>();
-  private readonly tasks = new Map<string, SimTask>();
   private readonly runtimeList: CharacterRuntime[] = [];
   private readonly listeners = new Set<() => void>();
   private readonly startEpochMs: number;
@@ -86,7 +73,6 @@ export class SimulationDirector {
   private eventCounter = 0;
   private historyCounter = 0;
   private version = 0;
-  private taskList: SimTask[] = [];
   private paused = false;
   private speed = 1;
   private dirty = false;
@@ -97,9 +83,6 @@ export class SimulationDirector {
     this.startEpochMs = options.startEpochMs ?? Date.now();
     this.walkSpeed = options.walkTilesPerSecond ?? 2.4;
     this.historyLimit = options.historyLimit ?? 30;
-
-    for (const task of options.tasks) this.tasks.set(task.id, { ...task });
-    this.taskList = [...this.tasks.values()];
 
     for (const character of options.cast) {
       const script = options.scripts.find((s) => s.characterId === character.id);
@@ -125,7 +108,6 @@ export class SimulationDirector {
         path: [],
         waypoint: home,
         destination: null,
-        currentTaskId: null,
         stepNote: "",
         history: [],
         lastEvent: null,
@@ -190,10 +172,6 @@ export class SimulationDirector {
 
   getSnapshot(id: string): CharacterSnapshot | undefined {
     return this.records.get(id)?.snapshot;
-  }
-
-  getTasks(): readonly SimTask[] {
-    return this.taskList;
   }
 
   getSimTimeMs(): number {
@@ -281,9 +259,6 @@ export class SimulationDirector {
       record.stepIndex = 0;
       record.loop += 1;
       record.sequence = 0;
-      for (const task of this.tasks.values()) {
-        if (task.ownerId === record.character.id) this.setTaskStatus(task.id, "todo");
-      }
     }
     const step = record.script[record.stepIndex]!;
     record.stepNote = step.note;
@@ -316,11 +291,6 @@ export class SimulationDirector {
 
     const previousState = rt.state;
     record.stepRemainingMs = step.durationMs;
-    if (step.taskId) {
-      record.currentTaskId = step.taskId;
-      const status = TASK_STATUS_FOR_STATE[step.state];
-      if (status) this.setTaskStatus(step.taskId, status);
-    }
     this.setState(record, step.state);
     this.pushHistory(record, "state", `${CHARACTER_STATE_LABELS[step.state]} · ${step.note}`);
     if (previousState === "waiting-approval" && step.emit?.type === "run.completed") {
@@ -335,17 +305,8 @@ export class SimulationDirector {
     this.dirty = true;
   }
 
-  private setTaskStatus(taskId: string, status: SimTaskStatus): void {
-    const task = this.tasks.get(taskId);
-    if (!task || task.status === status) return;
-    this.tasks.set(taskId, { ...task, status });
-    this.taskList = [...this.tasks.values()];
-    this.dirty = true;
-  }
-
   private emit(record: CharacterRecord, spec: SimEmit): void {
     const { character } = record;
-    const task = record.currentTaskId ? this.tasks.get(record.currentTaskId) : undefined;
     const base = {
       schemaVersion: AGENT_EVENT_SCHEMA_VERSION,
       id: `sim-evt-${++this.eventCounter}`,
@@ -397,8 +358,7 @@ export class SimulationDirector {
 
     record.lastEvent = event;
     record.eventCount += 1;
-    const label = task ? ` · ${task.title}` : "";
-    this.pushHistory(record, "event", `${event.type}${label}`, event);
+    this.pushHistory(record, "event", `${event.type} · ${record.stepNote}`, event);
   }
 
   private pushHistory(record: CharacterRecord, kind: HistoryEntry["kind"], text: string, event?: AgentExecutionEvent) {
@@ -417,7 +377,6 @@ export class SimulationDirector {
     if (!this.dirty) return;
     this.dirty = false;
     for (const record of this.records.values()) {
-      const task = record.currentTaskId ? (this.tasks.get(record.currentTaskId) ?? null) : null;
       const location = record.destination
         ? `Walking to ${record.destination.label}`
         : (record.waypoint?.label ?? "On the floor");
@@ -426,7 +385,6 @@ export class SimulationDirector {
         prev &&
         prev.state === record.runtime.state &&
         prev.history === record.history &&
-        prev.currentTask === task &&
         prev.location === location
       ) {
         continue;
@@ -436,7 +394,6 @@ export class SimulationDirector {
         state: record.runtime.state,
         posture: record.runtime.posture,
         location,
-        currentTask: task,
         stepNote: record.stepNote,
         lastEvent: record.lastEvent,
         history: record.history,

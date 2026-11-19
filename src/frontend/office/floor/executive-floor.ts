@@ -115,11 +115,3 @@ export const EXECUTIVE_FLOOR: FloorPlan = {
   ],
 };
 
-/** Board columns, one per board tile (left to right). */
-export const PROJECT_BOARD_COLUMNS = [
-  { status: "todo", label: "Backlog" },
-  { status: "in-progress", label: "Active" },
-  { status: "awaiting-approval", label: "Approval" },
-  { status: "done", label: "Done" },
-  { status: "blocked", label: "Blocked" },
-] as const;

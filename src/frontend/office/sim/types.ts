@@ -56,16 +56,12 @@ export interface PrototypeCharacter {
   project: string;
   plannedModel: string;
   homeWaypoint: WaypointId;
+  /**
+   * Slug of the TEST agent record this prototype stands in for. The
+   * inspector lists that agent's real (test) tasks from the database.
+   */
+  agentSlug: string;
   appearance: CharacterAppearance;
-}
-
-export type SimTaskStatus = "todo" | "in-progress" | "awaiting-approval" | "done" | "blocked";
-
-export interface SimTask {
-  id: string;
-  title: string;
-  ownerId: string;
-  status: SimTaskStatus;
 }
 
 /** What a scripted activity step announces to the event stream. */
@@ -86,8 +82,6 @@ export type SimStep =
       state: Exclude<CharacterState, "walking">;
       durationMs: number;
       note: string;
-      /** Sets the character's current task (and moves it on the board). */
-      taskId?: string;
       emit?: SimEmit;
     };
 
@@ -126,7 +120,6 @@ export interface CharacterSnapshot {
   state: CharacterState;
   posture: Posture;
   location: string;
-  currentTask: SimTask | null;
   stepNote: string;
   lastEvent: AgentExecutionEvent | null;
   history: HistoryEntry[];

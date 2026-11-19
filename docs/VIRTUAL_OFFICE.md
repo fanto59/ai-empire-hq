@@ -77,6 +77,15 @@ the deeper of their current and next tile.
 - `prefers-reduced-motion` damps gestures and bobbing.
 - PixiJS is loaded with a dynamic import, so it is not in the initial bundle.
 
+## Real data on the floor
+
+The project board and the inspector's "Current task" show **real task
+records** from the operational database (server-rendered, refreshed every
+15 s with `router.refresh()`; no database access or token in the browser).
+Each prototype character is linked to a seeded *test* agent record
+(`agentSlug`), and the inspector lists that agent's tasks. Character
+movement and states remain a labelled simulation.
+
 ## Honesty rules for the prototype
 
 - Characters have non-human codenames and a **SIM** chip on the canvas.

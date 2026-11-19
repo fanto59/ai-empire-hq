@@ -4,7 +4,7 @@ import { validateAgentEvent } from "@/agents/events/validate";
 import { EXECUTIVE_FLOOR } from "../floor/executive-floor";
 import { PROTOTYPE_CAST } from "./cast";
 import { SimulationDirector } from "./director";
-import { SIM_SCRIPTS, SIM_TASKS } from "./scripts";
+import { SIM_SCRIPTS } from "./scripts";
 import { CHARACTER_STATES, type CharacterState } from "./types";
 
 function makeDirector() {
@@ -12,7 +12,6 @@ function makeDirector() {
     plan: EXECUTIVE_FLOOR,
     cast: PROTOTYPE_CAST,
     scripts: SIM_SCRIPTS,
-    tasks: SIM_TASKS,
     startEpochMs: Date.UTC(2026, 0, 1),
   });
 }
@@ -124,11 +123,3 @@ test("history entry ids are unique across a long run", () => {
   });
 });
 
-test("board tasks move through statuses", () => {
-  const director = makeDirector();
-  const statuses = new Set<string>();
-  run(director, 120_000, () => {
-    for (const t of director.getTasks()) statuses.add(t.status);
-  });
-  for (const s of ["todo", "in-progress", "awaiting-approval", "done", "blocked"]) assert.ok(statuses.has(s), s);
-});

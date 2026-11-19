@@ -7,7 +7,8 @@ import type { FloorHotspot, RoomId } from "../office/floor/types";
 import type { ExecutiveFloorHandle } from "../office/pixi/executive-floor-renderer";
 import { PROTOTYPE_CAST } from "../office/sim/cast";
 import { SimulationDirector } from "../office/sim/director";
-import { SIM_SCRIPTS, SIM_TASKS } from "../office/sim/scripts";
+import { SIM_SCRIPTS } from "../office/sim/scripts";
+import type { TaskSummaryView } from "@/domain/task-view";
 import { CHARACTER_STATES, CHARACTER_STATE_LABELS } from "../office/sim/types";
 import { CharacterInspector } from "./CharacterInspector";
 import { FloorCanvas } from "./FloorCanvas";
@@ -24,12 +25,21 @@ const SPEEDS = [1, 2, 4] as const;
  * no simulated timestamps are rendered on the server) and wires the PixiJS
  * canvas to the side panels.
  */
-export function ExecutiveFloor() {
+export interface ExecutiveFloorProps {
+  /** Real task records from the database; null when the database is not set up. */
+  tasks: TaskSummaryView[] | null;
+  testData: boolean;
+}
+
+/** How often the server-rendered task list is refreshed while visible. */
+const TASK_REFRESH_MS = 15_000;
+
+export function ExecutiveFloor({ tasks, testData }: ExecutiveFloorProps) {
   const router = useRouter();
   // Deterministic and pure, so it is safe to construct during SSR too; the
   // UI only shows simulation-relative times (T+mm:ss), never wall-clock.
   const [director] = useState(
-    () => new SimulationDirector({ plan: EXECUTIVE_FLOOR, cast: PROTOTYPE_CAST, scripts: SIM_SCRIPTS, tasks: SIM_TASKS }),
+    () => new SimulationDirector({ plan: EXECUTIVE_FLOOR, cast: PROTOTYPE_CAST, scripts: SIM_SCRIPTS }),
   );
   const [handle, setHandle] = useState<ExecutiveFloorHandle | null>(null);
   const [panel, setPanel] = useState<Panel>({ kind: "overview" });
@@ -46,6 +56,19 @@ export function ExecutiveFloor() {
   useEffect(() => {
     handle?.setBatterySaver(batterySaver);
   }, [handle, batterySaver]);
+
+  useEffect(() => {
+    if (tasks) handle?.setTasks(tasks);
+  }, [handle, tasks]);
+
+  // Re-render the server component to pick up task changes (no client-side
+  // database access, no API token in the browser).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, TASK_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [router]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -85,7 +108,8 @@ export function ExecutiveFloor() {
         </span>
         <span>
           Prototype characters driven by scripted, clearly labelled simulation events. No AI agents, model providers,
-          or business accounts are connected.
+          or business accounts are connected. The project board shows real task records from the database
+          {testData ? " (test data)" : ""}.
         </span>
       </div>
 
@@ -160,11 +184,13 @@ export function ExecutiveFloor() {
                 character={character}
                 snapshot={snapshot}
                 director={director}
+                tasks={tasks}
+                testData={testData}
                 onClose={() => setPanel({ kind: "overview" })}
                 onFollow={() => handle?.focusCharacter(character.id)}
               />
             ) : panel.kind === "board" ? (
-              <ProjectBoardPanel tasks={director.getTasks()} cast={PROTOTYPE_CAST} onClose={() => setPanel({ kind: "overview" })} />
+              <ProjectBoardPanel tasks={tasks} cast={PROTOTYPE_CAST} testData={testData} onClose={() => setPanel({ kind: "overview" })} />
             ) : (
               <FloorOverviewPanel
                 plan={EXECUTIVE_FLOOR}

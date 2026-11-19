@@ -1,4 +1,5 @@
-import type { CharacterState, SimTaskStatus } from "../office/sim/types";
+import type { TaskState } from "@/domain/task-lifecycle";
+import type { CharacterState } from "../office/sim/types";
 
 /** Tailwind classes for state chips, shared by legend, lists, inspector. */
 export const STATE_DOT: Record<CharacterState, string> = {
@@ -12,20 +13,15 @@ export const STATE_DOT: Record<CharacterState, string> = {
   failed: "bg-red-500",
 };
 
-export const TASK_CHIP: Record<SimTaskStatus, string> = {
-  todo: "bg-slate-800 text-slate-300 ring-slate-700",
-  "in-progress": "bg-blue-950 text-blue-300 ring-blue-800",
-  "awaiting-approval": "bg-amber-950 text-amber-300 ring-amber-800",
-  done: "bg-emerald-950 text-emerald-300 ring-emerald-800",
-  blocked: "bg-red-950 text-red-300 ring-red-800",
-};
-
-export const TASK_LABEL: Record<SimTaskStatus, string> = {
-  todo: "Backlog",
-  "in-progress": "In progress",
-  "awaiting-approval": "Awaiting approval",
-  done: "Done",
-  blocked: "Blocked",
+export const TASK_CHIP: Record<TaskState, string> = {
+  queued: "bg-slate-800 text-slate-300 ring-slate-700",
+  assigned: "bg-sky-950 text-sky-300 ring-sky-800",
+  running: "bg-blue-950 text-blue-300 ring-blue-800",
+  waiting: "bg-amber-950 text-amber-300 ring-amber-800",
+  paused: "bg-slate-800 text-slate-400 ring-slate-700",
+  completed: "bg-emerald-950 text-emerald-300 ring-emerald-800",
+  failed: "bg-red-950 text-red-300 ring-red-800",
+  canceled: "bg-slate-900 text-slate-500 ring-slate-800",
 };
 
 export function hex(color: number): string {

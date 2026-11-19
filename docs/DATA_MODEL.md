@@ -1,7 +1,11 @@
 # Multi-Business Data Model
 
-TypeScript definitions live in `src/domain/`. No database exists yet; these
-types are the contract persistence will implement.
+Domain types live in `src/domain/`; the PostgreSQL schema that implements
+them is `src/infrastructure/db/schema.ts` (tables: organizations, sectors,
+businesses, departments, agents, agent_permissions, projects, tasks,
+task_dependencies, execution_runs, execution_events, approval_requests,
+knowledge_documents, model_usage, budgets, audit_logs, api_tokens). See
+[OPERATIONS.md](OPERATIONS.md) for constraints and the task state machine.
 
 ## Entity overview
 

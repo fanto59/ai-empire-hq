@@ -2,6 +2,7 @@
 // the app working under our strict Content-Security-Policy (no unsafe-eval).
 import "pixi.js/unsafe-eval";
 import { Application, Container, type FederatedPointerEvent } from "pixi.js";
+import type { TaskSummaryView } from "@/domain/task-view";
 import type { FloorHotspot, FloorPlan, RoomId } from "../floor/types";
 import type { SimulationDirector } from "../sim/director";
 import type { PrototypeCharacter } from "../sim/types";
@@ -45,6 +46,8 @@ export interface ExecutiveFloorHandle {
   focusCharacter(id: string): void;
   focusRoom(id: RoomId): void;
   setBatterySaver(on: boolean): void;
+  /** Shows real task records on the project board. */
+  setTasks(tasks: readonly TaskSummaryView[]): void;
   destroy(): void;
 }
 
@@ -82,7 +85,8 @@ export async function createExecutiveFloorRenderer(
   const sorted = new Container({ label: "sorted", sortableChildren: true });
   world.addChild(sorted);
 
-  const ownerColors = Object.fromEntries(cast.map((c) => [c.id, c.appearance.accent]));
+  // Board cards are colored by assignee (test agent slug).
+  const ownerColors = Object.fromEntries(cast.map((c) => [c.agentSlug, c.appearance.accent]));
   const furniture = buildFurniture(plan, ownerColors);
   for (const p of furniture.pieces) sorted.addChild(p);
   for (const p of buildPartitionSegments(plan)) sorted.addChild(p);
@@ -171,7 +175,6 @@ export async function createExecutiveFloorRenderer(
     director.tick(ticker.deltaMS);
     const t = director.getSimTimeMs() / 1000;
     for (const rt of director.runtimes()) views.get(rt.id)?.update(rt, t, motion);
-    furniture.board?.update(director.getTasks());
     camera.step(ticker.deltaMS);
   });
 
@@ -201,6 +204,9 @@ export async function createExecutiveFloorRenderer(
       const [x, y] = iso(col + rc / 2, row + rr / 2);
       camera.userMoved = true;
       camera.lookAt(x, y - 20, 1.25);
+    },
+    setTasks(tasks) {
+      furniture.board?.update(tasks);
     },
     setBatterySaver(on) {
       app.ticker.maxFPS = on ? 30 : 60;

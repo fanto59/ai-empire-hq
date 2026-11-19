@@ -2,18 +2,24 @@ import { deriveActivity } from "@/agents/events/derive";
 import type { SimulationDirector } from "../office/sim/director";
 import { CHARACTER_STATE_LABELS, type CharacterSnapshot, type PrototypeCharacter } from "../office/sim/types";
 import { SimBadge } from "./SimBadge";
-import { STATE_DOT, TASK_CHIP, TASK_LABEL, formatSimTime, hex } from "./state-style";
+import Link from "next/link";
+import { TASK_STATE_LABELS, type TaskSummaryView } from "@/domain/task-view";
+import { STATE_DOT, TASK_CHIP, formatSimTime, hex } from "./state-style";
 
 export interface CharacterInspectorProps {
   character: PrototypeCharacter;
   snapshot: CharacterSnapshot;
   director: SimulationDirector;
+  /** Real task records (null when the database is not set up). */
+  tasks: readonly TaskSummaryView[] | null;
+  testData: boolean;
   onClose: () => void;
   onFollow: () => void;
 }
 
-export function CharacterInspector({ character, snapshot, director, onClose, onFollow }: CharacterInspectorProps) {
+export function CharacterInspector({ character, snapshot, director, tasks, testData, onClose, onFollow }: CharacterInspectorProps) {
   const a = character.appearance;
+  const agentTasks = (tasks ?? []).filter((t) => t.assigneeSlug === character.agentSlug && t.state !== "canceled" && t.state !== "completed");
   const derived = deriveActivity(snapshot.lastEvent ?? undefined);
 
   return (
@@ -62,16 +68,26 @@ export function CharacterInspector({ character, snapshot, director, onClose, onF
           <Field label="Assigned business">{character.business}</Field>
           <Field label="Assigned project">{character.project}</Field>
           <Field label="Current task">
-            {snapshot.currentTask ? (
-              <span className="flex flex-wrap items-center gap-2">
-                <span>{snapshot.currentTask.title}</span>
-                <span className={`rounded px-1.5 py-0.5 text-[11px] ring-1 ${TASK_CHIP[snapshot.currentTask.status]}`}>
-                  {TASK_LABEL[snapshot.currentTask.status]}
-                </span>
-              </span>
+            {tasks === null ? (
+              <span className="text-slate-500">Database not set up</span>
+            ) : agentTasks.length === 0 ? (
+              <span className="text-slate-500">No open tasks for {character.agentSlug}</span>
             ) : (
-              <span className="text-slate-500">None yet</span>
+              <ul className="space-y-1.5">
+                {agentTasks.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-center gap-2">
+                    <Link href={`/tasks/${t.id}`} className="text-slate-200 underline decoration-slate-600 underline-offset-2 hover:decoration-slate-300">
+                      {t.title}
+                    </Link>
+                    <span className={`rounded px-1.5 py-0.5 text-[11px] ring-1 ${TASK_CHIP[t.state]}`}>{TASK_STATE_LABELS[t.state]}</span>
+                  </li>
+                ))}
+              </ul>
             )}
+            <span className="mt-1 block text-xs text-slate-500">
+              Database records assigned to the test agent <code className="text-slate-400">{character.agentSlug}</code>
+              {testData ? " (test data)" : ""}. The character&apos;s movement is still simulated.
+            </span>
           </Field>
           <Field label="Execution state">
             <span className="flex items-center gap-2">

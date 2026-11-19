@@ -13,8 +13,11 @@ const nextConfig: NextConfig = {
     "/": ["./knowledge/sample-vault/**/*.md"],
     "/knowledge": ["./knowledge/sample-vault/**/*.md"],
     "/knowledge/note": ["./knowledge/sample-vault/**/*.md"],
+    "/*": ["./drizzle/**/*"],
   },
   poweredByHeader: false,
+  // Database drivers run natively on the server (PGlite ships WebAssembly).
+  serverExternalPackages: ["pg", "@electric-sql/pglite"],
   reactStrictMode: true,
   async headers() {
     return [

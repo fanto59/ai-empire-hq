@@ -13,6 +13,7 @@ export const PROTOTYPE_CAST: readonly PrototypeCharacter[] = [
     project: "Executive Floor prototype",
     plannedModel: "Claude (Anthropic)",
     homeWaypoint: "chief.desk",
+    agentSlug: "test-chief",
     appearance: {
       skin: 0x8d5a3b,
       hair: 0xb8bcc4,
@@ -34,6 +35,7 @@ export const PROTOTYPE_CAST: readonly PrototypeCharacter[] = [
     project: "Executive Floor prototype",
     plannedModel: "OpenAI",
     homeWaypoint: "pm.desk",
+    agentSlug: "test-pm",
     appearance: {
       skin: 0xe0b18f,
       hair: 0x2b1d14,
@@ -55,6 +57,7 @@ export const PROTOTYPE_CAST: readonly PrototypeCharacter[] = [
     project: "Sector discovery (prototype)",
     plannedModel: "Grok (xAI)",
     homeWaypoint: "research.desk",
+    agentSlug: "test-research",
     appearance: {
       skin: 0xf1c7a5,
       hair: 0x8a3b1c,

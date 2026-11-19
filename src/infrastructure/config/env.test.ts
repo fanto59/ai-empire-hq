@@ -8,6 +8,8 @@ test("everything is disabled by default", () => {
   assert.equal(config.agentExecutionEnabled, false);
   assert.ok(Object.values(config.providers).every((p) => !p.enabled));
   assert.ok(config.knowledgeVaultDir.endsWith("knowledge/sample-vault"));
+  assert.equal(config.databaseUrl, "pglite:.data/pglite");
+  assert.equal(loadRuntimeConfig({ NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv).databaseUrl, null);
 });
 
 test("only the exact string 'true' enables a flag", () => {

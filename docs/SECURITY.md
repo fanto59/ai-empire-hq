@@ -86,10 +86,23 @@ The Executive Floor (`/office`) runs a scripted, in-browser simulation:
 - Event payloads carry redacted summaries, never raw secrets or credentials.
 - Event `origin` is mandatory; `"test"` events are dropped in production.
 
-## Before any write API or public exposure
+## Task API authentication
 
-Authentication and authorization must be implemented and reviewed first. No
-endpoint that mutates data or ingests events may be added without it.
+`/api/v1/*` requires a bearer token (see [OPERATIONS.md](OPERATIONS.md)):
+256-bit random tokens stored only as SHA-256 hashes, scopes, business
+restrictions, expiry and revocation, identical 401s for every bad token,
+404 (not 403) for records outside the caller's businesses, agents confined to
+their own tasks, and approvals reserved for people. Request bodies are capped
+at 32 KB and checked for secrets. Server-rendered pages read as the owner
+until interactive login exists, so **the app must not be exposed publicly**
+before login is added.
+
+## Database
+
+Append-only audit log (trigger), integrity constraints in PostgreSQL,
+credentials only via `DATABASE_URL` (never logged; UI shows a redacted
+description), embedded dev database in `.data/` (git-ignored, mode 0700).
+Seed data is fictional and flagged `is_test_data`.
 
 ## Dependencies
 

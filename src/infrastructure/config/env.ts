@@ -23,11 +23,20 @@ export interface RuntimeConfig {
    * volume; the app never reaches outside this server for notes.
    */
   knowledgeVaultDir: string;
+  /**
+   * Operational database. postgres://… for a real server, pglite:<dir> for
+   * embedded PostgreSQL. Defaults to an embedded database in .data/ outside
+   * production; in production it must be set explicitly (else: unavailable).
+   */
+  databaseUrl: string | null;
+  /** Organization shown on the dashboard (seeded test org by default). */
+  organizationSlug: string;
   agentExecutionEnabled: boolean;
   providers: Record<ProviderId, { enabled: boolean }>;
 }
 
 export const DEFAULT_KNOWLEDGE_VAULT = "knowledge/sample-vault";
+export const DEFAULT_DEV_DATABASE = "pglite:.data/pglite";
 
 const APP_ENVS: readonly AppEnv[] = ["development", "staging", "production"];
 
@@ -43,6 +52,8 @@ function parseAppEnv(value: string | undefined): AppEnv {
 export function loadRuntimeConfig(source: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   return {
     appEnv: parseAppEnv(source.APP_ENV),
+    databaseUrl: source.DATABASE_URL?.trim() || (source.NODE_ENV === "production" ? null : DEFAULT_DEV_DATABASE),
+    organizationSlug: source.AEHQ_ORGANIZATION?.trim() || "test-org",
     knowledgeVaultDir: path.resolve(/*turbopackIgnore: true*/ process.cwd(), source.KNOWLEDGE_VAULT_DIR?.trim() || DEFAULT_KNOWLEDGE_VAULT),
     agentExecutionEnabled: flag(source.AGENT_EXECUTION_ENABLED),
     providers: {

@@ -25,6 +25,13 @@ PORT=3000 HOSTNAME=0.0.0.0 node .next/standalone/server.js
 
 `npm start` (`next start`) also works for local production testing.
 
+## Database
+
+Set `DATABASE_URL=postgres://…` and run `npm run db:migrate` as a deliberate
+release step before starting the new version (the web app never migrates a
+real PostgreSQL server itself). Without `DATABASE_URL` in production the app
+reports the database as unavailable.
+
 ## Environment variables
 
 See `.env.example`. Set real values only in the hosting platform's secret
