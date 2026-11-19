@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FloorHotspot, FloorPlan } from "../office/floor/types";
 import type { ExecutiveFloorHandle } from "../office/pixi/executive-floor-renderer";
-import type { SimulationDirector } from "../office/sim/director";
+import type { FloorDirector } from "../office/floor-director";
 import type { PrototypeCharacter } from "../office/sim/types";
 
 /**
@@ -14,13 +14,16 @@ import type { PrototypeCharacter } from "../office/sim/types";
 export interface FloorCanvasProps {
   plan: FloorPlan;
   cast: readonly PrototypeCharacter[];
-  director: SimulationDirector;
+  director: FloorDirector;
   onReady: (handle: ExecutiveFloorHandle | null) => void;
   onSelectCharacter: (id: string | null) => void;
   onHotspot: (hotspot: FloorHotspot) => void;
+  /** Accessible description of what the canvas shows. */
+  label?: string;
+  mode?: "live" | "simulation";
 }
 
-export function FloorCanvas({ plan, cast, director, onReady, onSelectCharacter, onHotspot }: FloorCanvasProps) {
+export function FloorCanvas({ plan, cast, director, onReady, onSelectCharacter, onHotspot, label, mode = "simulation" }: FloorCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
@@ -44,6 +47,7 @@ export function FloorCanvas({ plan, cast, director, onReady, onSelectCharacter, 
           plan,
           cast,
           director,
+          mode,
           reducedMotion,
           onSelectCharacter: (id) => callbacks.current.onSelectCharacter(id),
           onHotspot: (h) => callbacks.current.onHotspot(h),
@@ -66,14 +70,14 @@ export function FloorCanvas({ plan, cast, director, onReady, onSelectCharacter, 
       callbacks.current.onReady(null);
       handle?.destroy();
     };
-  }, [plan, cast, director]);
+  }, [plan, cast, director, mode]);
 
   return (
     <div className="absolute inset-0">
       <div
         ref={hostRef}
         role="img"
-        aria-label="Interactive isometric view of the Executive Floor with three simulated prototype characters. Use the panel to select characters."
+        aria-label={label ?? "Interactive isometric view of the Executive Floor."}
         className="absolute inset-0"
       />
       {status === "loading" && (

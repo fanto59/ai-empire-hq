@@ -4,7 +4,7 @@ import "pixi.js/unsafe-eval";
 import { Application, Container, type FederatedPointerEvent } from "pixi.js";
 import type { TaskSummaryView } from "@/domain/task-view";
 import type { FloorHotspot, FloorPlan, RoomId } from "../floor/types";
-import type { SimulationDirector } from "../sim/director";
+import type { FloorDirector } from "../floor-director";
 import type { PrototypeCharacter } from "../sim/types";
 import { Camera } from "./camera";
 import { CharacterView } from "./character-view";
@@ -31,7 +31,9 @@ import { PALETTE } from "./palette";
 export interface ExecutiveFloorRendererOptions {
   plan: FloorPlan;
   cast: readonly PrototypeCharacter[];
-  director: SimulationDirector;
+  director: FloorDirector;
+  /** "live": real agents driven by execution events; "simulation": scripted prototype. */
+  mode?: "live" | "simulation";
   reducedMotion: boolean;
   onSelectCharacter: (id: string | null) => void;
   onHotspot: (hotspot: FloorHotspot) => void;
@@ -79,7 +81,8 @@ export async function createExecutiveFloorRenderer(
   const world = new Container({ label: "world", isRenderGroup: true });
   app.stage.addChild(world);
 
-  const structure = buildStructure(plan);
+  const live = options.mode === "live";
+  const structure = buildStructure(plan, { displayLabel: live ? "LIVE · REAL AGENT EVENTS" : "PROTOTYPE · SIMULATION" });
   world.addChild(structure.container);
 
   const sorted = new Container({ label: "sorted", sortableChildren: true });
@@ -99,9 +102,13 @@ export async function createExecutiveFloorRenderer(
 
   const views = new Map<string, CharacterView>();
   for (const character of cast) {
-    const view = new CharacterView(character, (id) => {
-      if (wasTap()) options.onSelectCharacter(id);
-    });
+    const view = new CharacterView(
+      character,
+      (id) => {
+        if (wasTap()) options.onSelectCharacter(id);
+      },
+      live ? "LIVE" : "SIM",
+    );
     views.set(character.id, view);
     sorted.addChild(view.root);
   }

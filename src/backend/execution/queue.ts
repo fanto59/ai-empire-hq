@@ -1,8 +1,9 @@
 import { and, asc, eq, gt, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { retryDelayMs } from "@/domain/task-lifecycle";
 import type { Db, Executor } from "@/infrastructure/db/client";
-import { executionEvents, executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { ServiceError } from "../errors";
+import { appendEvent } from "./events";
 import { applyTransition, lockTask, type Actor, type RunRow, type TaskRow } from "../tasks/engine";
 
 /**
@@ -187,8 +188,9 @@ export class ExecutionQueue {
       for (const run of expired) {
         const task = await lockTask(tx, run.taskId);
         if (!task || task.state !== "running") continue;
-        const reason = run.deadlineAt && run.deadlineAt < now ? "Run exceeded its timeout." : "Worker stopped sending heartbeats (lease expired).";
-        await this.failAndMaybeRetry(tx, task, reason, "timed_out", true, now);
+        const timedOut = Boolean(run.deadlineAt && run.deadlineAt < now);
+        const reason = timedOut ? "Run exceeded its timeout." : "Worker stopped sending heartbeats (lease expired).";
+        await this.failAndMaybeRetry(tx, task, reason, "timed_out", true, now, timedOut ? "TIMED_OUT" : "WORKER_LOST");
       }
       return expired.length;
     });
@@ -198,16 +200,8 @@ export class ExecutionQueue {
   async recordEvent(runId: string, workerId: string, type: string, payload: Record<string, unknown>, origin: "live" | "test" = "live") {
     const now = this.now();
     return this.db.transaction(async (tx) => {
-      const { run } = await this.ownedRun(tx, runId, workerId, now);
-      const [{ next }] = (await tx
-        .select({ next: sql<number>`coalesce(max(${executionEvents.sequence}), -1)::int + 1` })
-        .from(executionEvents)
-        .where(eq(executionEvents.runId, run.id))) as [{ next: number }];
-      const [event] = await tx
-        .insert(executionEvents)
-        .values({ runId: run.id, taskId: run.taskId, sequence: next, type: type.slice(0, 64), origin, payload, occurredAt: now })
-        .returning();
-      return event!;
+      const { run, task } = await this.ownedRun(tx, runId, workerId, now);
+      return appendEvent(tx, { run, task, type, payload, origin, at: now });
     });
   }
 
@@ -224,8 +218,8 @@ export class ExecutionQueue {
     return { run, task };
   }
 
-  private async failAndMaybeRetry(tx: Executor, task: TaskRow, error: string, outcome: "failed" | "timed_out", retryable: boolean, now: Date) {
-    const failed = await applyTransition(tx, task, { action: "fail", error, runOutcome: outcome }, SYSTEM, now);
+  private async failAndMaybeRetry(tx: Executor, task: TaskRow, error: string, outcome: "failed" | "timed_out", retryable: boolean, now: Date, errorCode?: string) {
+    const failed = await applyTransition(tx, task, { action: "fail", error, runOutcome: outcome, errorCode }, SYSTEM, now);
     if (!retryable || failed.attempt >= failed.maxAttempts) return failed;
     const retried = await applyTransition(tx, failed, { action: "retry", reason: "automatic retry" }, SYSTEM, now);
     if (retried.state === "assigned") {

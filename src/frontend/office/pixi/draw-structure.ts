@@ -17,7 +17,8 @@ export interface StructureLayer {
   elevator: Graphics;
 }
 
-export function buildStructure(plan: FloorPlan): StructureLayer {
+/** `displayLabel`: text on the conference wall display (says whether the floor is live or simulated). */
+export function buildStructure(plan: FloorPlan, opts: { displayLabel?: string } = {}): StructureLayer {
   const container = new Container({ label: "structure" });
   const g = new Graphics();
   container.addChild(g);
@@ -29,7 +30,7 @@ export function buildStructure(plan: FloorPlan): StructureLayer {
   let elevator = new Graphics();
   for (const feature of plan.wallFeatures) {
     if (feature.kind === "elevator") elevator = drawElevator(container, feature);
-    else drawWallFeature(g, container, feature);
+    else drawWallFeature(g, container, feature, opts.displayLabel ?? "PROTOTYPE · SIMULATION");
   }
 
   for (const room of plan.rooms) container.addChild(floorLabel(room));
@@ -105,7 +106,7 @@ function wallQuad(wall: WallFeature["wall"], t0: number, t1: number, z0: number,
   return pts(wallPoint(wall, t0, z0), wallPoint(wall, t1, z0), wallPoint(wall, t1, z1), wallPoint(wall, t0, z1));
 }
 
-function drawWallFeature(g: Graphics, container: Container, f: WallFeature) {
+function drawWallFeature(g: Graphics, container: Container, f: WallFeature, displayLabel: string) {
   const { wall, from, to } = f;
   if (f.kind === "window") {
     const z0 = 26;
@@ -137,8 +138,8 @@ function drawWallFeature(g: Graphics, container: Container, f: WallFeature) {
       g.poly(wallQuad(wall, t0, t0 + 0.25, 48, 52 + ((i * 7) % 15) + 6)).fill({ color: PALETTE.screenGlow, alpha: 0.35 });
     }
     const label = new Text({
-      text: "PROTOTYPE · SIMULATION",
-      style: { fontFamily: UI_FONT, fontSize: 9, fontWeight: "700", fill: 0xfbbf24, letterSpacing: 1.5 },
+      text: displayLabel,
+      style: { fontFamily: UI_FONT, fontSize: 9, fontWeight: "700", fill: displayLabel.includes("LIVE") ? 0x34d399 : 0xfbbf24, letterSpacing: 1.5 },
       resolution: 3,
     });
     const [x, y] = wallPoint(wall, from + 0.35, 82);

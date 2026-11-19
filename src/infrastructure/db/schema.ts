@@ -257,6 +257,11 @@ export const executionEvents = pgTable(
   "execution_events",
   {
     id: id(),
+    /** Global, monotonically increasing cursor for live streaming and replay (SSE Last-Event-ID). */
+    streamId: bigserial("stream_id", { mode: "number" }).notNull().unique(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    /** The agent the event is about (the task's assignee when it was recorded). */
+    agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
     runId: uuid("run_id").notNull().references(() => executionRuns.id, { onDelete: "cascade" }),
     taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
     sequence: integer("sequence").notNull(),
@@ -265,7 +270,11 @@ export const executionEvents = pgTable(
     payload: jsonb("payload").notNull().default({}),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("execution_events_run_seq_uq").on(t.runId, t.sequence)],
+  (t) => [
+    uniqueIndex("execution_events_run_seq_uq").on(t.runId, t.sequence),
+    index("execution_events_org_stream_idx").on(t.organizationId, t.streamId),
+    index("execution_events_agent_stream_idx").on(t.agentId, t.streamId),
+  ],
 );
 
 export const approvalRequests = pgTable(

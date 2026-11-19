@@ -69,8 +69,11 @@ test("claim → heartbeat → complete", async () => {
   const done = await queue.complete(claimed.run.id, "worker-1", "Test result");
   assert.equal(done.state, "completed");
   const events = await tdb.db.select().from(executionEvents).where(eq(executionEvents.runId, claimed.run.id));
-  assert.deepEqual(events.map((e) => e.sequence).sort(), [0, 1]);
-  assert.ok(events.every((e) => e.origin === "test"));
+  const sorted = [...events].sort((x, y) => x.sequence - y.sequence);
+  assert.deepEqual(sorted.map((e) => e.sequence), [0, 1, 2]);
+  assert.deepEqual(sorted.map((e) => e.type), ["run.step", "run.step", "run.completed"], "the system records the finish no worker reported");
+  assert.ok(sorted.slice(0, 2).every((e) => e.origin === "test"));
+  assert.ok(sorted.every((e) => e.organizationId === claimed.task.organizationId && e.taskId === claimed.task.id), "events carry organization and task ids");
 });
 
 test("dependencies gate enqueueReady", async () => {

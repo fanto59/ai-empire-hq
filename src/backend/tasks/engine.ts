@@ -4,6 +4,7 @@ import type { Executor } from "@/infrastructure/db/client";
 import { agentPermissions, agents, approvalRequests, executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { writeAudit } from "../audit";
 import { ServiceError } from "../errors";
+import { appendEvent, hasTerminalEvent, latestRun } from "../execution/events";
 
 /**
  * TRANSITION ENGINE - the only code that changes a task's state.
@@ -36,6 +37,14 @@ export interface TransitionInput {
   leaseMs?: number;
   /** For "fail" by the reaper. */
   runOutcome?: "failed" | "timed_out";
+  /** For "fail": machine-readable code for the run.failed event (e.g. WORKER_LOST). */
+  errorCode?: string;
+  /**
+   * Record lifecycle execution events (approval requested, run ended by the
+   * system or a person). Default true; the test-data seed turns it off so no
+   * execution activity is ever invented for seeded tasks.
+   */
+  recordEvents?: boolean;
   expectedVersion?: number;
 }
 
@@ -76,6 +85,7 @@ export async function applyTransition(tx: Executor, task: TaskRow, input: Transi
       break;
     }
     case "wait": {
+      const run = await activeRun(tx, task.id);
       await endActiveRuns(tx, task.id, "suspended", now);
       patch.waitingReason = clip(input.reason ?? input.approval?.reason ?? "Waiting", 500);
       if (input.approval) {
@@ -90,6 +100,13 @@ export async function applyTransition(tx: Executor, task: TaskRow, input: Transi
           })
           .returning({ id: approvalRequests.id });
         meta.approvalId = approval!.id;
+        if (input.recordEvents !== false) {
+          await lifecycleEvent(tx, task, run, now, "approval.requested", {
+            approvalId: approval!.id,
+            action: clip(input.approval.action, 200),
+            reason: clip(input.approval.reason, 300),
+          });
+        }
       }
       break;
     }
@@ -117,15 +134,31 @@ export async function applyTransition(tx: Executor, task: TaskRow, input: Transi
           .where(and(eq(approvalRequests.taskId, task.id), eq(approvalRequests.status, "approved")));
         if (approved.length === 0) throw new ServiceError("conflict", "This task needs an approved approval request before it can complete.", "approval-required");
       }
+      const run = (await activeRun(tx, task.id)) ?? (await latestRun(tx, task.id));
       await endActiveRuns(tx, task.id, "succeeded", now);
       patch.resultSummary = clip(input.result ?? "", 2000) || null;
+      if (input.recordEvents !== false) {
+        await lifecycleEvent(tx, task, run, now, "run.completed", { summary: clip(input.result ?? "Completed.", 300), usage: null, by: actor.kind }, { onlyIfNoTerminal: true });
+      }
       patch.finishedAt = now;
       patch.waitingReason = null;
       break;
     }
     case "fail": {
       const error = clip(input.error ?? "Task failed.", 2000);
+      const run = (await activeRun(tx, task.id)) ?? (await latestRun(tx, task.id));
       await endActiveRuns(tx, task.id, input.runOutcome ?? "failed", now, error);
+      if (input.recordEvents !== false) {
+        await lifecycleEvent(
+          tx,
+          task,
+          run,
+          now,
+          "run.failed",
+          { errorCode: clip(input.errorCode ?? (input.runOutcome === "timed_out" ? "TIMED_OUT" : "FAILED"), 40), message: clip(error, 300), by: actor.kind },
+          { onlyIfNoTerminal: true },
+        );
+      }
       await expirePendingApprovals(tx, task.id, now);
       patch.lastError = error;
       patch.finishedAt = now;
@@ -136,12 +169,17 @@ export async function applyTransition(tx: Executor, task: TaskRow, input: Transi
     case "retry":
       patch.finishedAt = null;
       break;
-    case "cancel":
+    case "cancel": {
+      const run = (await activeRun(tx, task.id)) ?? (await latestRun(tx, task.id));
+      if (input.recordEvents !== false) {
+        await lifecycleEvent(tx, task, run, now, "run.canceled", { reason: clip(input.reason ?? "Canceled.", 300), by: actor.kind }, { onlyIfNoTerminal: true });
+      }
       await endActiveRuns(tx, task.id, "canceled", now);
       await expirePendingApprovals(tx, task.id, now);
       patch.finishedAt = now;
       patch.waitingReason = null;
       break;
+    }
   }
   if (input.reason) meta.reason = clip(input.reason, 200);
 
@@ -246,6 +284,31 @@ async function endActiveRuns(tx: Executor, taskId: string, outcome: RunRow["stat
     .update(executionRuns)
     .set({ status: "canceled", finishedAt: now })
     .where(and(eq(executionRuns.taskId, taskId), inArray(executionRuns.status, [...ACTIVE_RUN])));
+}
+
+/** The task's running run, if any. */
+async function activeRun(tx: Executor, taskId: string): Promise<RunRow | undefined> {
+  const [run] = await tx.select().from(executionRuns).where(and(eq(executionRuns.taskId, taskId), eq(executionRuns.status, "running")));
+  return run;
+}
+
+/**
+ * Records a real lifecycle event on the task's run. No run = nothing was ever
+ * executed, so nothing is recorded. With onlyIfNoTerminal, an event the
+ * worker already reported (run.completed / run.failed) is not duplicated.
+ */
+async function lifecycleEvent(
+  tx: Executor,
+  task: TaskRow,
+  run: RunRow | undefined,
+  now: Date,
+  type: string,
+  payload: Record<string, unknown>,
+  opts: { onlyIfNoTerminal?: boolean } = {},
+): Promise<void> {
+  if (!run) return;
+  if (opts.onlyIfNoTerminal && (await hasTerminalEvent(tx, run.id))) return;
+  await appendEvent(tx, { run, task, type, payload, origin: "live", at: now });
 }
 
 async function expirePendingApprovals(tx: Executor, taskId: string, now: Date) {

@@ -21,6 +21,7 @@ export function deriveActivity(latest: AgentExecutionEvent | undefined): Derived
     case "run.failed":
       return "error";
     case "run.completed":
+    case "run.canceled":
     case "agent.handoff":
       return "idle";
   }

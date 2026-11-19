@@ -5,7 +5,7 @@ Two renderers share the same isometric math (`src/frontend/office/iso.ts`):
 | Renderer | Where | Purpose |
 | --- | --- | --- |
 | SVG preview | `/` (HQ dashboard) | Static, server-rendered floor plan built from real HQ data (`buildOfficeScene`). |
-| PixiJS Executive Floor | `/office` | Interactive 2.5D prototype with three **simulated** characters. |
+| PixiJS Executive Floor | `/office` | Interactive 2.5D floor. **Live** by default (real agents driven by their execution events, see [LIVE_OFFICE.md](LIVE_OFFICE.md)); a labelled **simulation** demo is optional. |
 
 ## Executive Floor (PixiJS 8)
 
@@ -102,9 +102,10 @@ from the database. ORION's movement stays simulated and is labelled so.
   history, never leaves the browser, and is dropped by the backend event bus.
 - Times are shown as simulation clock (`T+mm:ss`), not wall-clock.
 
-## Connecting real agents later
+## Real agents (done)
 
-Replace `SimulationDirector` with a director fed by the authenticated event
-stream (SSE): same `CharacterRuntime`/`CharacterSnapshot` contract, movement
-derived from task/room assignments, states derived via `deriveActivity`.
-Remove the simulation labels only for characters backed by real agents.
+`LiveDirector` (`src/frontend/office/live/`) implements the same renderer
+interface (`FloorDirector`: tick / runtimes / getRuntime / getSimTimeMs) and is
+fed by the authenticated event stream. Real characters carry a green LIVE
+nameplate; the wall display reads "LIVE · REAL AGENT EVENTS". See
+[LIVE_OFFICE.md](LIVE_OFFICE.md).

@@ -29,6 +29,13 @@
       "when": 1795103268693,
       "tag": "0003_chief_ai_manager",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795128707204,
+      "tag": "0004_live_office",
+      "breakpoints": true
     }
   ]
 }

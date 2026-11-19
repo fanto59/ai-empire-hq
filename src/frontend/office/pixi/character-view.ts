@@ -47,7 +47,8 @@ export class CharacterView {
 
   readonly character: PrototypeCharacter;
 
-  constructor(character: PrototypeCharacter, onTap: (id: string) => void) {
+  /** `tag`: SIM for scripted prototype characters, LIVE for real agents. */
+  constructor(character: PrototypeCharacter, onTap: (id: string) => void, tag: "SIM" | "LIVE" = "SIM") {
     this.character = character;
     const a = character.appearance;
     this.scale = a.heightScale;
@@ -85,7 +86,7 @@ export class CharacterView {
     this.buildBadges();
     this.badgeRoot.position.set(0, -84 * this.scale);
     this.root.addChild(this.badgeRoot);
-    this.root.addChild(this.buildNameplate(character));
+    this.root.addChild(this.buildNameplate(character, tag));
   }
 
   private buildLegs(a: PrototypeCharacter["appearance"]) {
@@ -232,7 +233,7 @@ export class CharacterView {
 
   }
 
-  private buildNameplate(character: PrototypeCharacter): Container {
+  private buildNameplate(character: PrototypeCharacter, tag: "SIM" | "LIVE"): Container {
     const plate = new Container();
     const name = new Text({
       text: character.codename,
@@ -240,7 +241,7 @@ export class CharacterView {
       resolution: 4,
     });
     const sim = new Text({
-      text: "SIM",
+      text: tag,
       style: { fontFamily: UI_FONT, fontSize: 6.5, fontWeight: "800", fill: 0x111827, letterSpacing: 0.6 },
       resolution: 4,
     });
@@ -249,7 +250,7 @@ export class CharacterView {
     const w = name.width + pad * 2 + simW + 2;
     const h = 12;
     const bg = new Graphics().roundRect(-w / 2, -h / 2, w, h, 6).fill({ color: 0x0f172a, alpha: 0.86 });
-    const chip = new Graphics().roundRect(w / 2 - simW - 2, -h / 2 + 2, simW, h - 4, 4).fill(PALETTE.sim);
+    const chip = new Graphics().roundRect(w / 2 - simW - 2, -h / 2 + 2, simW, h - 4, 4).fill(tag === "LIVE" ? 0x34d399 : PALETTE.sim);
     name.anchor.set(0, 0.5);
     name.position.set(-w / 2 + pad, 0);
     sim.anchor.set(0.5, 0.5);

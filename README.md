@@ -19,9 +19,10 @@ npm run dev        # http://localhost:3000
 Pages:
 
 - `/` – Headquarters dashboard
-- `/office` – **Executive Floor**: interactive 2.5D office (PixiJS) with three
-  clearly labelled *simulated* prototype characters. Click a character to
-  inspect it; drag to pan; scroll or use the toolbar to zoom.
+- `/office` – **Executive Floor**: interactive 2.5D office (PixiJS). Live by
+  default: your real agents move only on their real execution events (sign in
+  required; see docs/LIVE_OFFICE.md). A clearly labelled simulation demo is one
+  click away. Click a character to inspect it; drag to pan; scroll to zoom.
 - `/tasks` – Tasks from the operational database (test data)
 - `/agents` – Agents, their open work and spend; give any agent an assignment
 - `/models` – Choose the provider/model per agent; provider status, live availability, results on real tasks
@@ -60,6 +61,7 @@ Optional: disable Next.js anonymous telemetry on your machine with
 | [docs/SECURITY.md](docs/SECURITY.md) | Security rules |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Multi-business data model |
 | [docs/VIRTUAL_OFFICE.md](docs/VIRTUAL_OFFICE.md) | Isometric office rendering plan |
+| [docs/LIVE_OFFICE.md](docs/LIVE_OFFICE.md) | Live office: event stream, animation state machine, replay and failures |
 | [docs/AGENT_EVENTS.md](docs/AGENT_EVENTS.md) | Agent execution event contract |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Database, task API, state machine, durable execution |
 | [docs/CHIEF_AI_MANAGER.md](docs/CHIEF_AI_MANAGER.md) | Chief AI Manager agent: objectives → plans, boundaries |

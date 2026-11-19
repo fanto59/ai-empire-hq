@@ -69,8 +69,12 @@ counts), `tool.called` / `tool.result` (web search and fetch), and
 - Pure activity reducer (`derive.ts`).
 - In-memory, business-filtered event bus (`src/backend/events/event-bus.ts`).
 
-Not yet: ingestion endpoint, persistence, SSE stream, runtime. Ingestion
-requires authentication first (see SECURITY.md).
+Persistence: `execution_events` (id, stream_id cursor, organization, agent,
+task, run, sequence, timestamp), written only through `appendEvent`
+(`src/backend/execution/events.ts`). Live delivery: the authenticated SSE
+stream `/api/v1/events/stream` (see [LIVE_OFFICE.md](LIVE_OFFICE.md)). Events
+come only from the app's own workers and task engine; there is no external
+ingestion endpoint.
 
 ## Rules
 

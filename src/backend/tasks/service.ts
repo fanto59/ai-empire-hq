@@ -4,6 +4,7 @@ import type { Db } from "@/infrastructure/db/client";
 import { agents, approvalRequests, auditLogs, executionEvents, executionRuns, knowledgeDocuments, modelUsage, projects, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { canAccessBusiness, type ApiScope, type RequestContext } from "../auth/context";
 import { writeAudit } from "../audit";
+import { appendEvent, latestRun } from "../execution/events";
 import { ServiceError, UUID, assertUuid } from "../errors";
 import { findSecrets } from "../knowledge/secrets";
 import { applyTransition, lockTask, type Actor, type RunRow, type TaskRow } from "./engine";
@@ -69,10 +70,16 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9_.:-]{8,128}$/;
 export class TaskService {
   private readonly db: Db;
   private readonly now: () => Date;
+  private readonly recordEvents: boolean;
 
-  constructor(db: Db, options: { now?: () => Date } = {}) {
+  /**
+   * recordEvents=false is ONLY for the test-data seed: seeded tasks get no
+   * execution events, so the live office never shows invented activity.
+   */
+  constructor(db: Db, options: { now?: () => Date; recordEvents?: boolean } = {}) {
     this.db = db;
     this.now = options.now ?? (() => new Date());
+    this.recordEvents = options.recordEvents ?? true;
   }
 
   async createTask(ctx: RequestContext, input: CreateTaskInput, idempotencyKey?: string): Promise<{ task: TaskRow; created: boolean }> {
@@ -242,7 +249,13 @@ export class TaskService {
           throw new ServiceError("forbidden", "Agents may only start, wait on, complete or fail tasks assigned to them.");
         }
       }
-      return applyTransition(tx, task, { ...req, workerId: req.action === "start" ? `api:${ctx.principal.id}` : undefined }, actorOf(ctx), now);
+      return applyTransition(
+        tx,
+        task,
+        { ...req, workerId: req.action === "start" ? `api:${ctx.principal.id}` : undefined, recordEvents: this.recordEvents },
+        actorOf(ctx),
+        now,
+      );
     });
   }
 
@@ -271,9 +284,11 @@ export class TaskService {
         metadata: { approvalId, note: note ? note.slice(0, 200) : null },
         at: now,
       });
+      const run = this.recordEvents ? await latestRun(tx, task.id) : undefined;
+      if (run) await appendEvent(tx, { run, task, type: "approval.resolved", payload: { approvalId, decision, by: "user" }, origin: "live", at: now });
       // A rejection ends the task; an approval lets it resume.
       if (decision === "rejected" && task.state === "waiting") {
-        return applyTransition(tx, task, { action: "fail", error: "Approval was rejected." }, actorOf(ctx), now);
+        return applyTransition(tx, task, { action: "fail", error: "Approval was rejected.", errorCode: "APPROVAL_REJECTED", recordEvents: this.recordEvents }, actorOf(ctx), now);
       }
       return task;
     });

@@ -123,6 +123,11 @@ Import rules:
   an access context. Sync to Obsidian stays disabled until the owner approves.
 - Agent "activity" is derived from execution events (`deriveActivity`), never
   stored or simulated. Real runs record `origin: "live"` events.
+- Events are written only via `appendEvent` (src/backend/execution/events.ts):
+  workers for activity, the task engine for lifecycle (approval, system/person
+  ends). The seed records none. The live office animates ONLY from streamed
+  events (`/api/v1/events/stream`) through the pure state machine
+  (src/frontend/office/live/machine.ts); movement is computed in the browser.
 - Model calls go through the provider interface (src/agents/providers/types.ts);
   agents never import an SDK. Claude uses `@anthropic-ai/sdk`; OpenAI and xAI
   use the official `openai` SDK (Responses API, `store: false`). Keep model IDs
@@ -143,6 +148,7 @@ Import rules:
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
+- `docs/LIVE_OFFICE.md` - real-time office: event stream, state machine, refresh/replay/failure handling
 - `docs/MODEL_PROVIDERS.md` - Claude / OpenAI / Grok: interface, keys, safety, model config, evaluation
 - `docs/RESEARCH_AGENT.md` - the Research Agent: flow, limits, credentials
 - `docs/CHIEF_AI_MANAGER.md` - the Chief AI Manager agent: tools, boundaries, persistent context

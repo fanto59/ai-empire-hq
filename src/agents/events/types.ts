@@ -92,6 +92,9 @@ export type RunFailedEvent = AgentEventEnvelope<
   { errorCode: string; /** Safe for display: no stack traces or secrets. */ message: string }
 >;
 
+/** A person (or the system) canceled the task while it had a run. */
+export type RunCanceledEvent = AgentEventEnvelope<"run.canceled", { reason: string }>;
+
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
@@ -107,7 +110,8 @@ export type AgentExecutionEvent =
   | ApprovalResolvedEvent
   | HandoffEvent
   | RunCompletedEvent
-  | RunFailedEvent;
+  | RunFailedEvent
+  | RunCanceledEvent;
 
 export type AgentExecutionEventType = AgentExecutionEvent["type"];
 
@@ -122,6 +126,7 @@ export const AGENT_EVENT_TYPES = [
   "agent.handoff",
   "run.completed",
   "run.failed",
+  "run.canceled",
 ] as const satisfies readonly AgentExecutionEventType[];
 
 /** Activity state derived for display (office animations, status badges). */
