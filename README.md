@@ -23,6 +23,8 @@ Pages:
   clearly labelled *simulated* prototype characters. Click a character to
   inspect it; drag to pan; scroll or use the toolbar to zoom.
 - `/tasks` – Tasks from the operational database (test data)
+- `/agents` – Agents, their open work and spend; give any agent an assignment
+- `/usage` – Claude API usage and spending: today, per day, by agent/model/business, budgets
 - `/knowledge` – Knowledge vault (Markdown/Obsidian notes, sample content)
 - `/sectors` – Sector overview placeholder
 

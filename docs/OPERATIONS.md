@@ -137,3 +137,21 @@ TEST_DATABASE_URL=postgres://user@localhost:5432/postgres npm test
 
 Each test file creates and drops its own throwaway database there; never
 point it at a server with real data.
+
+## API usage & spending (`/usage`)
+
+Built only from `model_usage` (one row per real Claude API call, written by the
+SpendGuard; seeds insert none). Shows today / this month / all time, average
+per day and a labelled month-end projection, monthly budgets (organization and
+per business), a 30-day daily spend chart (UTC days, hover tooltip, table view),
+breakdowns by agent, model and business, and the most recent calls. Hosting and
+other costs are not tracked. Code: `src/backend/usage/report.ts`.
+
+## Agent assignments (`/agents`)
+
+Signed-in owners can give any active agent an assignment
+(`src/backend/tasks/assignments.ts`). Routing by capability: the Chief AI
+Manager gets an executive objective, agents with `research.web_search` get a
+research task (both run automatically within budgets), and every other agent
+gets a tracked `general` task assigned to it (requires `task.execute`; no worker
+runs these agents yet, and the UI says so). Agents can never assign work.

@@ -7,6 +7,8 @@ const LINKS = [
   { href: "/", label: "Headquarters" },
   { href: "/office", label: "Executive Floor" },
   { href: "/tasks", label: "Tasks" },
+  { href: "/agents", label: "Agents" },
+  { href: "/usage", label: "Usage" },
   { href: "/knowledge", label: "Knowledge" },
   { href: "/sectors", label: "Sectors" },
 ];
@@ -22,7 +24,7 @@ export function AppNav() {
           </span>
           <span className="hidden sm:inline">AI Empire HQ</span>
         </Link>
-        <nav aria-label="Primary" className="flex items-center gap-1 text-xs whitespace-nowrap sm:text-sm">
+        <nav aria-label="Primary" className="-mr-4 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-4 text-xs whitespace-nowrap sm:text-sm">
           {LINKS.map((link) => {
             const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
             return (

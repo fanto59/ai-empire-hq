@@ -111,6 +111,8 @@ Import rules:
 - Task state changes go ONLY through `applyTransition` (src/backend/tasks/engine.ts)
   inside a transaction with the task row locked. Never update `tasks.state` directly.
 - UIs read tasks from the database (server-side), never from hard-coded arrays.
+- Usage and spending figures come only from `model_usage` rows written for real
+  API calls; never seed or fabricate usage.
 - Seed and test data must be fictional and marked (`is_test_data`, "Test:" titles).
 - Knowledge notes go through `src/backend/knowledge` only (never raw `fs`), with
   an access context. Sync to Obsidian stays disabled until the owner approves.

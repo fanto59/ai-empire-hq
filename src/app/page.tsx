@@ -9,6 +9,7 @@ import { SystemStatus } from "@/frontend/components/SystemStatus";
 import { OfficeViewport, buildOfficeScene } from "@/frontend/office";
 import { noteHref } from "@/frontend/knowledge/Markdown";
 import { TASK_STATES } from "@/domain/task-lifecycle";
+import { formatUsd } from "@/agents/research/pricing";
 import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
 import { KindBadge, SampleBadge, scopeLabel } from "@/frontend/knowledge/NoteBadges";
 
@@ -51,6 +52,36 @@ export default async function HeadquartersPage() {
               </span>
               <span aria-hidden className="text-sky-300">→</span>
             </Link>
+          </Panel>
+
+          <Panel title="API spending" subtitle="Claude API costs recorded for every agent call (UTC days).">
+            {!overview.spending ? (
+              <DatabaseSetupNotice />
+            ) : (
+              <>
+                <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    ["Today", formatUsd(overview.spending.todayMicros), `${overview.spending.callsToday} API call${overview.spending.callsToday === 1 ? "" : "s"}`],
+                    ["This month", formatUsd(overview.spending.monthMicros), "so far"],
+                    ["Month-end", formatUsd(overview.spending.projectedMonthMicros), "projection"],
+                    [
+                      "Monthly budget",
+                      overview.spending.budget ? formatUsd(overview.spending.budget.limitMicros) : "Not set",
+                      overview.spending.budget ? `${formatUsd(overview.spending.budget.spentMicros)} used` : "agents can't spend",
+                    ],
+                  ].map(([label, value, detail]) => (
+                    <div key={label} className="rounded-lg bg-slate-950/60 p-3 ring-1 ring-slate-800">
+                      <dt className="text-xs text-slate-400">{label}</dt>
+                      <dd className="mt-0.5 text-lg font-semibold text-white tabular-nums">{value}</dd>
+                      <dd className="text-[11px] text-slate-500">{detail}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <Link href="/usage" className="mt-3 inline-block text-sm text-sky-300 hover:text-sky-200">
+                  Daily spending, by agent and model →
+                </Link>
+              </>
+            )}
           </Panel>
 
           <Panel title="Tasks" subtitle="Live records from the operational database.">

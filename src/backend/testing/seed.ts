@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/infrastructure/db/client";
-import { agentPermissions, agents, budgets, businesses, departments, knowledgeDocuments, modelUsage, organizations, projects, sectors } from "@/infrastructure/db/schema";
+import { agentPermissions, agents, budgets, businesses, departments, knowledgeDocuments, organizations, projects, sectors } from "@/infrastructure/db/schema";
 import { ownerRequestContext } from "../auth/context";
 import { TaskService, type TransitionRequest } from "../tasks/service";
 
@@ -118,16 +118,7 @@ export async function seedTestData(db: Db, now: () => Date = () => new Date()): 
   // Usage and budgets: test numbers only, not linked to any financial account.
   // Budgets start at $0, so no API spending happens until the owner sets one
   // (npm run budget:set).
-  await db.insert(modelUsage).values({
-    organizationId: orgId,
-    businessId: bizA!.id,
-    agentId: agent("test-research"),
-    provider: "test",
-    model: "test-model",
-    inputTokens: 0,
-    outputTokens: 0,
-    costMicros: 0,
-  });
+  // No model_usage rows are seeded: usage is recorded only for real API calls.
   const month = now().toISOString().slice(0, 8) + "01";
   await db.insert(budgets).values([
     { organizationId: orgId, businessId: null, periodStart: month, limitMicros: 0 },
