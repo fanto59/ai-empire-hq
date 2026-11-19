@@ -45,10 +45,10 @@ export class CharacterView {
   private selected = false;
   private hovered = false;
 
-  constructor(
-    readonly character: PrototypeCharacter,
-    onTap: (id: string) => void,
-  ) {
+  readonly character: PrototypeCharacter;
+
+  constructor(character: PrototypeCharacter, onTap: (id: string) => void) {
+    this.character = character;
     const a = character.appearance;
     this.scale = a.heightScale;
     this.phase = (character.id.length * 1.37) % 3;

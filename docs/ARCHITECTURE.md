@@ -56,6 +56,9 @@ The frontend boundary is enforced by ESLint (`no-restricted-imports`).
 `GET /office` - interactive Executive Floor (client-side PixiJS, simulated
 characters; see [VIRTUAL_OFFICE.md](VIRTUAL_OFFICE.md)).
 
+`GET /knowledge`, `GET /knowledge/note?path=…` - knowledge vault browser
+(see [KNOWLEDGE.md](KNOWLEDGE.md)).
+
 `GET /sectors` - placeholder sector overview (no sectors exist yet).
 
 `GET /api/health` - liveness probe; returns `{ "status": "ok" }` only.
@@ -85,7 +88,7 @@ See [DATA_MODEL.md](DATA_MODEL.md).
 | Execution runtime | `src/agents/runtime/*` (new) emitting `AgentExecutionEvent` | Must honor `AGENT_EXECUTION_ENABLED` and approvals. |
 | Live updates to UI | SSE route under `src/app/api/events` subscribing to `AgentEventBus` | Requires auth first. |
 | PixiJS office | `src/frontend/office/pixi/*` implementing `OfficeRenderer` | See [VIRTUAL_OFFICE.md](VIRTUAL_OFFICE.md). |
-| Obsidian knowledge | `src/infrastructure/knowledge/obsidian.ts` | Read-only, server-side, path allow-list. |
+| Obsidian knowledge | `src/backend/knowledge/*` (done), sync adapter in `src/infrastructure/knowledge/sync.ts` | Sync designed, disabled. |
 
 ## Roadmap (proposed, each step = its own PR)
 
@@ -95,6 +98,7 @@ See [DATA_MODEL.md](DATA_MODEL.md).
 4. Agent event ingestion + SSE activity feed (still no providers).
 5. PixiJS renderer with animated avatars — **prototype done** (Executive
    Floor, simulated); next: drive it from real events.
-6. Obsidian vault read-only indexing.
+6. Knowledge service — **done** (local vault, business isolation); next:
+   Obsidian Headless Sync once approved.
 7. First model provider adapter behind flags, budgets, and approval gates.
 8. Chief AI Manager / Central Project Manager orchestration.

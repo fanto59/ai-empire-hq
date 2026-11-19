@@ -39,6 +39,12 @@ is added deliberately, behind explicit gates.
 - The event bus filters subscriptions by `businessId`.
 - HQ-level data uses `businessId: null` and is visible only to HQ-level roles.
 
+## Knowledge vault
+
+See [KNOWLEDGE.md](KNOWLEDGE.md). Business-scoped access contexts, strict
+path whitelist + root containment + symlink refusal, secret scanning on every
+write, atomic writes, and sync disabled by a frozen default-deny policy.
+
 ## Prototype simulation
 
 The Executive Floor (`/office`) runs a scripted, in-browser simulation:

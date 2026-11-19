@@ -7,6 +7,8 @@ import { Panel } from "@/frontend/components/Panel";
 import { RoleCard } from "@/frontend/components/RoleCard";
 import { SystemStatus } from "@/frontend/components/SystemStatus";
 import { OfficeViewport, buildOfficeScene } from "@/frontend/office";
+import { noteHref } from "@/frontend/knowledge/Markdown";
+import { KindBadge, SampleBadge, scopeLabel } from "@/frontend/knowledge/NoteBadges";
 
 // Runtime config is read per request (not baked in at build time).
 export const dynamic = "force-dynamic";
@@ -46,6 +48,47 @@ export default async function HeadquartersPage() {
                 <span className="block text-xs text-slate-400">2.5D prototype with simulated characters (clearly labelled).</span>
               </span>
               <span aria-hidden className="text-sky-300">→</span>
+            </Link>
+          </Panel>
+
+          <Panel title="Knowledge" subtitle={`${overview.knowledge.total} notes in the local vault · sync ${overview.knowledge.syncState}`}>
+            {overview.knowledge.latestReport && (
+              <Link
+                href={noteHref(overview.knowledge.latestReport.path)}
+                className="mb-4 block rounded-lg bg-slate-950/60 p-4 ring-1 ring-slate-800 transition hover:ring-sky-400/40"
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold tracking-wider text-sky-400 uppercase">Latest research report</span>
+                  {overview.knowledge.latestReport.meta.origin === "sample" && <SampleBadge />}
+                </span>
+                <span className="mt-1 block text-lg font-semibold text-white">{overview.knowledge.latestReport.meta.title}</span>
+                <span className="mt-1 block text-xs text-slate-400">
+                  {scopeLabel(overview.knowledge.latestReport.meta.business)}
+                  {overview.knowledge.latestReport.meta.project ? ` · project ${overview.knowledge.latestReport.meta.project}` : ""}
+                  {overview.knowledge.latestReport.meta.tasks.length > 0
+                    ? ` · linked task ${overview.knowledge.latestReport.meta.tasks.join(", ")}`
+                    : ""}
+                </span>
+              </Link>
+            )}
+            {overview.knowledge.recent.length === 0 ? (
+              <EmptyState title="No notes yet">Run npm run knowledge:seed to create the sample vault.</EmptyState>
+            ) : (
+              <ul className="divide-y divide-slate-800">
+                {overview.knowledge.recent.map((n) => (
+                  <li key={n.path}>
+                    <Link href={noteHref(n.path)} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 hover:text-white">
+                      <KindBadge kind={n.meta.kind} />
+                      <span className="min-w-0 flex-1 text-slate-200">{n.meta.title}</span>
+                      <span className="text-xs text-slate-500">{scopeLabel(n.meta.business)}</span>
+                      {n.meta.origin === "sample" && <SampleBadge />}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link href="/knowledge" className="mt-3 inline-block text-sm text-sky-300 hover:text-sky-200">
+              Open the knowledge vault →
             </Link>
           </Panel>
 

@@ -21,6 +21,7 @@ Pages:
 - `/office` – **Executive Floor**: interactive 2.5D office (PixiJS) with three
   clearly labelled *simulated* prototype characters. Click a character to
   inspect it; drag to pan; scroll or use the toolbar to zoom.
+- `/knowledge` – Knowledge vault (Markdown/Obsidian notes, sample content)
 - `/sectors` – Sector overview placeholder
 
 ### Previewing in Claude Code on the web
@@ -55,4 +56,5 @@ Optional: disable Next.js anonymous telemetry on your machine with
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Multi-business data model |
 | [docs/VIRTUAL_OFFICE.md](docs/VIRTUAL_OFFICE.md) | Isometric office rendering plan |
 | [docs/AGENT_EVENTS.md](docs/AGENT_EVENTS.md) | Agent execution event contract |
+| [docs/KNOWLEDGE.md](docs/KNOWLEDGE.md) | Knowledge vault, access rules, Obsidian sync design |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Cloud readiness |

@@ -27,10 +27,13 @@ export class Camera {
   static readonly MIN_ZOOM = 0.45;
   static readonly MAX_ZOOM = 2.6;
 
-  constructor(
-    private readonly world: Container,
-    private readonly bounds: WorldBounds,
-  ) {}
+  private readonly world: Container;
+  private readonly bounds: WorldBounds;
+
+  constructor(world: Container, bounds: WorldBounds) {
+    this.world = world;
+    this.bounds = bounds;
+  }
 
   resize(w: number, h: number) {
     this.viewW = Math.max(1, w);

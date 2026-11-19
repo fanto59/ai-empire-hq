@@ -26,3 +26,7 @@ next-env.d.ts
 
 # local knowledge vaults must never be committed
 /vaults/
+
+# Obsidian app state inside vaults (per-device settings, caches)
+**/.obsidian/
+**/.trash/

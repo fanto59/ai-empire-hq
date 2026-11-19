@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   // Produces a self-contained server bundle in .next/standalone, suitable for
   // container-based cloud hosting. See docs/DEPLOYMENT.md.
   output: "standalone",
+  // The sample knowledge vault is read from disk at runtime; ship it with the
+  // standalone server so the demo works there too.
+  outputFileTracingIncludes: {
+    "/": ["./knowledge/sample-vault/**/*.md"],
+    "/knowledge": ["./knowledge/sample-vault/**/*.md"],
+    "/knowledge/note": ["./knowledge/sample-vault/**/*.md"],
+  },
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

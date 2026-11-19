@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs --test \"src/**/*.test.ts\"",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "knowledge:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test/register.mjs scripts/knowledge/seed-sample-vault.ts"
   },
   "dependencies": {
     "next": "16.4.6",

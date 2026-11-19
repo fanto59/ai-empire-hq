@@ -33,6 +33,7 @@ erDiagram
 | `Project` | `work.ts` | HQ or business | `status`, `ownerAgentId` |
 | `Task` | `work.ts` | HQ or business | `status`, `assigneeAgentId`, `requiresHumanApproval` |
 | `KnowledgeSource` | `knowledge.ts` | HQ or business | `kind: "obsidian-vault"`, `locationRef`, `access: "read-only"` |
+| `KnowledgeNote` | `knowledge.ts` | HQ or business | Markdown note + frontmatter (`kind`, `project`, `agent`, `tasks`, `confidentiality`, `origin`); see [KNOWLEDGE.md](KNOWLEDGE.md) |
 | `IntegrationConnection` | `integration.ts` | HQ or business | `kind`, `status`, `secretRef`, `scopes` |
 | `AuditEntry` | `audit.ts` | HQ or business | `actor`, `action`, `target` - append-only |
 | `AgentExecutionEvent` | `agents/events/types.ts` | HQ or business | see [AGENT_EVENTS.md](AGENT_EVENTS.md) |

@@ -197,10 +197,12 @@ export class ProjectBoardView {
   private readonly cardLayers: Graphics[] = [];
   private lastTasks: readonly SimTask[] | null = null;
 
-  constructor(
-    private readonly item: FurnitureItem,
-    private readonly ownerColors: Record<string, number>,
-  ) {
+  private readonly item: FurnitureItem;
+  private readonly ownerColors: Record<string, number>;
+
+  constructor(item: FurnitureItem, ownerColors: Record<string, number>) {
+    this.item = item;
+    this.ownerColors = ownerColors;
     const { col, row, cols } = item.area;
     for (let i = 0; i < cols; i++) {
       const c = col + i;

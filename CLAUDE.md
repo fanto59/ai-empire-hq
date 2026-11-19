@@ -28,7 +28,8 @@ providers.
    clearly labelled browser-side prototype simulation (Executive Floor):
    its events use `origin: "simulation"`, every surface showing it says
    "simulated", and it never reaches the server or storage.
-7. **No secrets in git.** Only `.env.example` is tracked. Never log secrets.
+7. **No secrets in git or Markdown.** Only `.env.example` is tracked. Never
+   log secrets. The knowledge service refuses notes that look like secrets.
 8. **Minimal dependencies.** Do not add frameworks or libraries without a clear
    need stated in the PR. Pin exact versions.
 9. **Work on a branch and open a PR** for review. Never push to `main`.
@@ -42,6 +43,7 @@ providers.
 - Node 22.18+ (`.nvmrc`), npm
 - Tests: Node's built-in test runner (`node:test`) with native TypeScript
   type stripping; `scripts/test/` maps the `@/` alias. No test framework.
+  `erasableSyntaxOnly` is on: no enums or constructor parameter properties.
 
 ## Commands
 
@@ -51,6 +53,7 @@ npm run dev          # development server on http://localhost:3000
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint .
 npm test             # unit tests (src/**/*.test.ts)
+npm run knowledge:seed  # regenerate the sample knowledge vault
 npm run build        # production build (.next/standalone output)
 npm start            # serve the production build
 npm run check        # typecheck + lint + test + build (run before every PR)
@@ -67,7 +70,9 @@ src/
   agents/          Agent contracts: events/, providers/, roles/
   domain/          Shared, framework-free types (the data model)
   infrastructure/  Config, security headers, future persistence adapters
-docs/              Architecture, security, data model, office, events, deploy
+knowledge/         sample-vault/ (committed demo notes; real vaults go in vaults/)
+scripts/           test/ (test-runner alias hooks), knowledge/ (sample seed)
+docs/              Architecture, security, data model, office, events, knowledge, deploy
 ```
 
 Import rules:
@@ -80,6 +85,8 @@ Import rules:
 ## Conventions
 
 - Every business-owned record carries `businessId`; every query is scoped by it.
+- Knowledge notes go through `src/backend/knowledge` only (never raw `fs`), with
+  an access context. Sync to Obsidian stays disabled until the owner approves.
 - Agent "activity" is derived from execution events (`deriveActivity`), never
   stored or simulated.
 - Renderers draw scene/floor data only; they never fetch or hold business logic.
@@ -94,4 +101,5 @@ Import rules:
 - `docs/DATA_MODEL.md` - multi-business data model
 - `docs/VIRTUAL_OFFICE.md` - isometric rendering architecture (PixiJS plan)
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
+- `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/DEPLOYMENT.md` - cloud-readiness notes (no deployment yet)

@@ -7,6 +7,7 @@ test("everything is disabled by default", () => {
   assert.equal(config.appEnv, "development");
   assert.equal(config.agentExecutionEnabled, false);
   assert.ok(Object.values(config.providers).every((p) => !p.enabled));
+  assert.ok(config.knowledgeVaultDir.endsWith("knowledge/sample-vault"));
 });
 
 test("only the exact string 'true' enables a flag", () => {

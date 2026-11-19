@@ -1,4 +1,6 @@
 import type { AgentProfile, Business } from "@/domain";
+import type { KnowledgeNoteSummary } from "@/domain/knowledge";
+import { getKnowledgeService, getKnowledgeSync, ownerContext } from "@/backend/knowledge";
 import { loadRuntimeConfig, type ProviderId } from "@/infrastructure/config/env";
 import { emptyRepositories } from "./repositories";
 
@@ -12,14 +14,17 @@ export interface HqOverview {
   providers: { id: ProviderId; enabled: boolean }[];
   businesses: Business[];
   hqAgents: AgentProfile[];
+  knowledge: { recent: KnowledgeNoteSummary[]; latestReport: KnowledgeNoteSummary | null; total: number; syncState: string };
 }
 
 export async function getHqOverview(): Promise<HqOverview> {
   const config = loadRuntimeConfig();
   const repos = emptyRepositories;
-  const [businesses, hqAgents] = await Promise.all([
+  const [businesses, hqAgents, notes, sync] = await Promise.all([
     repos.businesses.list(),
     repos.agents.listHqLevel(),
+    getKnowledgeService().listNotes(ownerContext()),
+    getKnowledgeSync().status(),
   ]);
 
   return {
@@ -31,5 +36,11 @@ export async function getHqOverview(): Promise<HqOverview> {
     })),
     businesses,
     hqAgents,
+    knowledge: {
+      recent: notes.notes.filter((n) => n.meta.kind !== "report").slice(0, 4),
+      latestReport: notes.notes.find((n) => n.meta.kind === "report") ?? null,
+      total: notes.notes.length,
+      syncState: sync.state,
+    },
   };
 }
