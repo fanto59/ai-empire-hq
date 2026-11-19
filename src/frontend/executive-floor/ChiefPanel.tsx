@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { formatUsd } from "@/agents/research/pricing";
+import { formatUsd } from "@/domain/money";
 import { TASK_STATE_LABELS } from "@/domain/task-view";
 import { PlanView } from "../tasks/PlanView";
 import type { ChiefPanelData, SubmitGoalAction } from "./chief-types";
@@ -33,7 +33,7 @@ export function ChiefPanel({ data, submitGoal }: { data: ChiefPanelData; submitG
           Chief AI Manager · real agent
         </h3>
         <p className="mt-1 text-xs leading-relaxed text-slate-400">
-          Objectives you send here are handled by the Chief AI Manager agent (Claude). It reads your organization&apos;s records and
+          Objectives you send here are handled by the Chief AI Manager agent, on the model chosen for it on the Models page. It reads your organization&apos;s records and
           proposes a plan. It can&apos;t approve spending, sign contracts, change permissions or skip your approvals.
         </p>
         {data.orgBudget && (

@@ -10,7 +10,7 @@ import { TaskService } from "./service";
  */
 export async function findChiefAgent(db: Db, organizationId: string) {
   const [chief] = await db
-    .select({ id: agents.id, slug: agents.slug, displayName: agents.displayName })
+    .select({ id: agents.id, slug: agents.slug, displayName: agents.displayName, role: agents.role, modelProvider: agents.modelProvider, modelName: agents.modelName })
     .from(agents)
     .innerJoin(agentPermissions, eq(agentPermissions.agentId, agents.id))
     .where(

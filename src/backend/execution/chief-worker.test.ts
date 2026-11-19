@@ -7,9 +7,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { CHIEF_TOOLS, MAX_WORK_REQUESTS } from "@/agents/chief/tools";
 import { validatePlan } from "@/agents/chief/plan";
-import type { Messages } from "@/agents/research/agent";
+import { createAnthropicProvider, type Messages } from "@/agents/providers/anthropic";
 import {
   agentPermissions,
+  agents,
   agentTaskContexts,
   approvalRequests,
   auditLogs,
@@ -83,10 +84,18 @@ beforeEach(async () => {
     (["org.read", "task.request", "knowledge.write"] as const).map((permission) => ({ agentId: f.agents.chief, permission, grantedBy: "test" })),
   );
   await tdb.db.insert(budgets).values({ organizationId: f.orgId, businessId: null, periodStart: monthStart(new Date()), limitMicros: 5_000_000 });
+  // These tests script Claude responses: assign the Chief to Claude.
+  await tdb.db.update(agents).set({ modelProvider: "anthropic", modelName: "claude-opus-5-5" }).where(eq(agents.id, f.agents.chief));
 });
 
-const worker = (messages: () => Messages) =>
-  new ChiefWorker({ db: tdb.db, knowledge, messages, config: { model: "claude-opus-5-5", effort: "medium", maxRunMicros: 1_000_000 }, workerId: `chief-${n}`, backoffBaseMs: 0 });
+const worker = (messages: () => Messages) => {
+  const anthropic = createAnthropicProvider({ messages, status: () => ({ ready: true, keyConfigured: true, enabled: true, reason: "test" }) });
+  const providers = (id: "anthropic" | "openai" | "xai") => {
+    if (id !== "anthropic") throw new Error(`provider ${id} must not be used`);
+    return anthropic;
+  };
+  return new ChiefWorker({ db: tdb.db, knowledge, providers, config: { effort: "medium", maxRunMicros: 1_000_000 }, workerId: `chief-${n}`, backoffBaseMs: 0 });
+};
 const taskRow = async (id: string) => (await tdb.db.select().from(tasks).where(eq(tasks.id, id)))[0]!;
 const toolbox = (taskId: string, canRequestWork = true) =>
   new ChiefToolbox(tdb.db, knowledge, { organizationId: f.orgId, chiefAgentId: f.agents.chief, chiefSlug: "test-chief", executiveTaskId: taskId, canRequestWork, now: () => new Date() });
@@ -112,7 +121,7 @@ test("the Chief's tools contain no way to approve, spend, sign, change permissio
     "submit_plan",
   ]);
   for (const n of names) assert.doesNotMatch(n, /approve|decide|set_|grant|permission|contract|sign|spend|pay|delete|update|assign|bash|shell|sql|exec/);
-  assert.ok(CHIEF_TOOLS.every((t) => t.strict === true), "all tool inputs are schema-validated");
+  assert.ok(CHIEF_TOOLS.every((t) => t.inputSchema.additionalProperties === false), "all tool inputs are strict schemas (adapters send them as strict tools)");
 });
 
 // ---- end to end ------------------------------------------------------------------
@@ -271,7 +280,10 @@ test("persistent task context: a retried attempt resumes the saved conversation"
   let t = await taskRow(id);
   assert.equal(t.state, "assigned", "transient failure → retry");
   const [ctx] = await tdb.db.select().from(agentTaskContexts).where(eq(agentTaskContexts.taskId, id));
-  assert.equal((ctx!.messages as unknown[]).length, 3, "objective + assistant tool call + tool result saved");
+  const saved = ctx!.messages as { session: { provider: string; history: unknown[] }; pending: { toolResults?: unknown[] } };
+  assert.equal(saved.session.provider, "anthropic");
+  assert.equal(saved.session.history.length, 2, "objective + assistant tool call saved");
+  assert.equal(saved.pending.toolResults?.length, 1, "the tool result waiting to be sent is saved too");
 
   const seen: unknown[][] = [];
   await worker(() => scripted([toolUse("p", "submit_plan", PLAN)], seen)).tick();

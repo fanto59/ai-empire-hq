@@ -11,7 +11,7 @@ test("everything is disabled by default", () => {
   assert.ok(loadRuntimeConfig({ NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv).knowledgeVaultDir.endsWith("knowledge/sample-vault"));
   assert.equal(config.anthropicKeyConfigured, false);
   assert.equal(config.workerMode, "off");
-  assert.equal(config.research.model, "claude-opus-5-5");
+  assert.deepEqual(config.providerKeys, { anthropic: false, openai: false, xai: false });
   assert.ok(config.research.allowedDomains.includes("wikipedia.org"));
   assert.equal(config.databaseUrl, "pglite:.data/pglite");
   assert.equal(loadRuntimeConfig({ NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv).databaseUrl, null);

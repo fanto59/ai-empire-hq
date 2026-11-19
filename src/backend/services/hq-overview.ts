@@ -45,7 +45,7 @@ export async function getHqOverview(): Promise<HqOverview> {
     agentExecutionEnabled: config.agentExecutionEnabled,
     providers: (Object.keys(config.providers) as ProviderId[]).map((id) => ({
       id,
-      enabled: config.providers[id].enabled,
+      enabled: config.agentExecutionEnabled && config.providers[id].enabled && config.providerKeys[id],
     })),
     businesses,
     hqAgents,

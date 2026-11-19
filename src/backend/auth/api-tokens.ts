@@ -69,6 +69,7 @@ export async function authenticate(db: Db, authorization: string | null, now = n
     const [agent] = row.agentId ? await db.select().from(agents).where(eq(agents.id, row.agentId)) : [];
     if (!agent || agent.status !== "active" || agent.organizationId !== row.organizationId) throw UNAUTHENTICATED();
     scopes.delete("approvals:decide");
+    scopes.delete("models:admin"); // agents can never change model assignments
     ctx = {
       organizationId: row.organizationId,
       principal: { kind: "agent", id: `token:${row.id}`, agentId: agent.id },

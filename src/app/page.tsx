@@ -9,7 +9,7 @@ import { SystemStatus } from "@/frontend/components/SystemStatus";
 import { OfficeViewport, buildOfficeScene } from "@/frontend/office";
 import { noteHref } from "@/frontend/knowledge/Markdown";
 import { TASK_STATES } from "@/domain/task-lifecycle";
-import { formatUsd } from "@/agents/research/pricing";
+import { formatUsd } from "@/domain/money";
 import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
 import { KindBadge, SampleBadge, scopeLabel } from "@/frontend/knowledge/NoteBadges";
 
@@ -54,7 +54,7 @@ export default async function HeadquartersPage() {
             </Link>
           </Panel>
 
-          <Panel title="API spending" subtitle="Claude API costs recorded for every agent call (UTC days).">
+          <Panel title="API spending" subtitle="Model API costs (Claude, OpenAI, Grok) recorded for every agent call (UTC days).">
             {!overview.spending ? (
               <DatabaseSetupNotice />
             ) : (

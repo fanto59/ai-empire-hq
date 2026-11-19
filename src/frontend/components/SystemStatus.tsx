@@ -27,7 +27,7 @@ export function SystemStatus({ appEnv, agentExecutionEnabled, providers }: Syste
         <div key={p.id} className="flex items-center justify-between gap-4">
           <dt className="text-slate-400">{p.label}</dt>
           <dd>
-            <StatusBadge tone={p.enabled ? "on" : "off"}>{p.enabled ? "enabled" : "not connected"}</StatusBadge>
+            <StatusBadge tone={p.enabled ? "on" : "off"}>{p.enabled ? "connected" : "not connected"}</StatusBadge>
           </dd>
         </div>
       ))}

@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/office", label: "Executive Floor" },
   { href: "/tasks", label: "Tasks" },
   { href: "/agents", label: "Agents" },
+  { href: "/models", label: "Models" },
   { href: "/usage", label: "Usage" },
   { href: "/knowledge", label: "Knowledge" },
   { href: "/sectors", label: "Sectors" },

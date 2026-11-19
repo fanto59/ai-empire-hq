@@ -8,7 +8,7 @@ import { TASK_STATE_LABELS } from "@/domain/task-view";
 import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
 import { getSessionContext } from "@/backend/auth/session";
 import { getResearchStatus } from "@/backend/tasks/research-status";
-import { formatUsd } from "@/agents/research/pricing";
+import { formatUsd } from "@/domain/money";
 import { ResearchForm } from "@/frontend/tasks/ResearchForm";
 import { AutoRefresh } from "@/frontend/tasks/AutoRefresh";
 import { signOutAction } from "../login/actions";
@@ -57,13 +57,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                     Research Agent
                   </h2>
                   <p className="mt-1 text-xs text-slate-400">
-                    Claude ({research.model}) with read-only web search on approved sites: {research.allowedDomains.join(", ")}.
+                    {research.providerLabel} ({research.model}, set on the Models page) with read-only web search on approved sites: {research.allowedDomains.join(", ")}.
                     Cap per attempt {formatUsd(research.maxRunMicros)}.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className={`rounded-full px-2.5 py-0.5 ring-1 ${research.providerReady ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30" : "bg-amber-500/10 text-amber-200 ring-amber-500/30"}`}>
-                    {research.providerReady ? "Claude API key configured" : "Claude API not configured"}
+                    {research.providerReady ? `${research.providerLabel} configured` : `${research.providerLabel} not configured`}
                   </span>
                   <span className={`rounded-full px-2.5 py-0.5 ring-1 ${research.workerMode === "in-process" ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30" : "bg-slate-800 text-slate-300 ring-slate-700"}`}>
                     Worker: {research.workerMode === "in-process" ? "running in this server" : "separate process / off"}

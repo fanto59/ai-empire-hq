@@ -35,13 +35,14 @@ export interface RuntimeConfig {
   providers: Record<ProviderId, { enabled: boolean }>;
   /** True when AEHQ_ANTHROPIC_API_KEY is set (the value is never exposed). */
   anthropicKeyConfigured: boolean;
+  /** Which app keys are set: AEHQ_ANTHROPIC_API_KEY / AEHQ_OPENAI_API_KEY / AEHQ_XAI_API_KEY (values never exposed). */
+  providerKeys: Record<ProviderId, boolean>;
   /** "in-process" runs the research worker inside the web server. */
   workerMode: "off" | "in-process";
   research: ResearchConfig;
 }
 
 export interface ResearchConfig {
-  model: string;
   effort: "low" | "medium" | "high";
   /** Approved public domains the agent may search and read. */
   allowedDomains: string[];
@@ -97,9 +98,13 @@ export function loadRuntimeConfig(source: NodeJS.ProcessEnv = process.env): Runt
       xai: { enabled: flag(source.PROVIDER_XAI_ENABLED) },
     },
     anthropicKeyConfigured: Boolean(source.AEHQ_ANTHROPIC_API_KEY?.trim()),
+    providerKeys: {
+      anthropic: Boolean(source.AEHQ_ANTHROPIC_API_KEY?.trim()),
+      openai: Boolean(source.AEHQ_OPENAI_API_KEY?.trim()),
+      xai: Boolean(source.AEHQ_XAI_API_KEY?.trim()),
+    },
     workerMode: source.AGENT_WORKER?.trim() === "in-process" ? "in-process" : "off",
     research: {
-      model: source.RESEARCH_MODEL?.trim() || "claude-opus-5-5",
       effort: (["low", "medium", "high"] as const).find((e) => e === source.RESEARCH_EFFORT?.trim()) ?? "medium",
       allowedDomains: parseDomains(source.RESEARCH_ALLOWED_DOMAINS),
       maxRunMicros: Math.round(Number(source.RESEARCH_MAX_COST_USD ?? "1.00") * 1_000_000) || 1_000_000,

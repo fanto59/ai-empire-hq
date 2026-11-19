@@ -1,4 +1,4 @@
-# Research Agent (Claude API)
+# Research Agent
 
 The first real agent. It answers a research question with read-only web
 research and saves a structured, source-checked report in the knowledge vault.
@@ -62,18 +62,21 @@ Before every call the **worst-case** cost (estimated input + full output
 allowance + remaining searches, priced at the more expensive of the model and
 its refusal fallback) is reserved atomically; afterwards it is settled to the
 actual cost from `usage`, and a `model_usage` row is written. Prices live in
-`src/agents/research/pricing.ts` (verify against Anthropic's pricing page).
+`src/agents/providers/catalog.ts` (see [MODEL_PROVIDERS.md](MODEL_PROVIDERS.md)).
 The task deadline aborts in-flight requests; heartbeats keep the lease.
 
-Model: `claude-opus-5-5` (`RESEARCH_MODEL`), effort `medium`
-(`RESEARCH_EFFORT`). If the model declines a request (`refusal`), the API's
-server-side fallback re-runs it on `claude-opus-4-8` within the same call.
+Model: the one assigned to the research agent on **/models** (initially Grok
+`grok-4.7`; any catalog model with domain-limited web search can be chosen,
+e.g. `claude-opus-5-5`), effort `medium` (`RESEARCH_EFFORT`). On Claude Opus,
+a declined request (`refusal`) is re-run by the API's server-side fallback on
+`claude-opus-4-8` within the same call. The loop is provider-neutral; see
+[MODEL_PROVIDERS.md](MODEL_PROVIDERS.md).
 
 ## Credentials
 
-- The app reads **only** `AEHQ_ANTHROPIC_API_KEY` and passes it explicitly to
-  the official SDK (`@anthropic-ai/sdk`), with the endpoint pinned to
-  `https://api.anthropic.com`. It never uses `ANTHROPIC_API_KEY`,
+- The app reads **only** its own keys (`AEHQ_ANTHROPIC_API_KEY`,
+  `AEHQ_OPENAI_API_KEY`, `AEHQ_XAI_API_KEY`) and passes them explicitly to the
+  official SDKs, with endpoints pinned. For Claude it never uses `ANTHROPIC_API_KEY`,
   `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ant` profiles, or any Claude
   Code session credentials.
 - Use a dedicated API key from the Claude Console, ideally in its own
@@ -89,8 +92,9 @@ npm run budget:set -- --usd 2        # organization budget for this month
 npm run budget:set -- --usd 1 --business test-business-a
 npm run db:token -- --name browser   # sign-in token (shown once)
 
-AEHQ_ANTHROPIC_API_KEY=... \
-AGENT_EXECUTION_ENABLED=true PROVIDER_ANTHROPIC_ENABLED=true AGENT_WORKER=in-process \
+# Key + switch for the research agent's provider (Grok by default):
+AEHQ_XAI_API_KEY=... PROVIDER_XAI_ENABLED=true \
+AGENT_EXECUTION_ENABLED=true AGENT_WORKER=in-process \
 npm run dev
 # → /login (paste the token) → /tasks → "Create research task"
 ```
@@ -103,6 +107,6 @@ With a real PostgreSQL server, run the worker separately: `npm run worker`.
   refusals, budget refusal, timeout), spend guard, worker integration against
   a real database and vault (success, no budget, no provider, transient retry,
   timeout, missing capability). No network, no cost.
-- `npm run test:e2e`: **live** test against the Claude API with a harmless
-  public question (Hubble Space Telescope, Wikipedia only, $1 cap). Requires
-  `AEHQ_ANTHROPIC_API_KEY`; skipped otherwise.
+- `npm run test:e2e`: **live** test with a harmless public question (Hubble
+  Space Telescope, Wikipedia only, $1 cap) on `E2E_MODEL` (default
+  `claude-opus-5-5`). Requires that provider's app key; skipped otherwise.

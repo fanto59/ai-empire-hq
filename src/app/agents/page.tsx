@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatUsd } from "@/agents/research/pricing";
+import { formatUsd } from "@/domain/money";
 import { ownerRequestContext } from "@/backend/auth/context";
 import { getSessionContext } from "@/backend/auth/session";
 import { getDashboardOrganization, getDatabase } from "@/backend/db";
@@ -15,8 +15,8 @@ export const metadata: Metadata = { title: "Agents · AI Empire HQ" };
 export const dynamic = "force-dynamic";
 
 const CAPABILITY: Record<AgentCapability, { label: string; className: string }> = {
-  "plans-objectives": { label: "Plans objectives (Claude)", className: "bg-sky-500/10 text-sky-200 ring-sky-400/30" },
-  "runs-research": { label: "Runs research (Claude)", className: "bg-sky-500/10 text-sky-200 ring-sky-400/30" },
+  "plans-objectives": { label: "Plans objectives", className: "bg-sky-500/10 text-sky-200 ring-sky-400/30" },
+  "runs-research": { label: "Runs research", className: "bg-sky-500/10 text-sky-200 ring-sky-400/30" },
   "tracked-only": { label: "Tracked only", className: "bg-slate-800 text-slate-300 ring-slate-700" },
 };
 
@@ -48,7 +48,7 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
           {org.isTestData && <TestDataBadge />}
         </div>
         <p className="mt-2 max-w-2xl text-slate-400">
-          Give any agent an assignment. Agents connected to Claude run their work automatically within your budgets; the others
+          Give any agent an assignment. The Chief AI Manager and Research Agents run their work automatically on the model chosen for them (see Models), within your budgets; the others
           keep it on their task list until they are connected.
         </p>
       </header>

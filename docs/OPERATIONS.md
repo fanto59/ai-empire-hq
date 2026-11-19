@@ -112,8 +112,9 @@ every write, and `Idempotency-Key` on task creation.
 
 **Workers.** The Research Agent worker (`src/backend/execution/research-worker.ts`)
 loops `reapExpired → enqueueReady(research) → claim(research) → execute with
-heartbeats → complete/fail`. It runs only when `AGENT_EXECUTION_ENABLED` and
-`PROVIDER_ANTHROPIC_ENABLED` are `true` and `AEHQ_ANTHROPIC_API_KEY` is set:
+heartbeats → complete/fail`. Workers start when `AGENT_EXECUTION_ENABLED` is
+`true` and at least one provider has its switch and app key; each task then
+needs the provider assigned to its agent (see [MODEL_PROVIDERS.md](MODEL_PROVIDERS.md)):
 in-process (`AGENT_WORKER=in-process`, needed with the embedded database) or
 as `npm run worker`. Tasks of other kinds are never claimed. See
 [RESEARCH_AGENT.md](RESEARCH_AGENT.md).
@@ -140,7 +141,7 @@ point it at a server with real data.
 
 ## API usage & spending (`/usage`)
 
-Built only from `model_usage` (one row per real Claude API call, written by the
+Built only from `model_usage` (one row per real model API call (Claude, OpenAI or Grok), written by the
 SpendGuard; seeds insert none). Shows today / this month / all time, average
 per day and a labelled month-end projection, monthly budgets (organization and
 per business), a 30-day daily spend chart (UTC days, hover tooltip, table view),

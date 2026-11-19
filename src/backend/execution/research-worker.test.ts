@@ -5,9 +5,11 @@ import path from "node:path";
 import { after, before, beforeEach, test } from "node:test";
 import Anthropic from "@anthropic-ai/sdk";
 import { and, asc, eq } from "drizzle-orm";
-import type { Messages } from "@/agents/research/agent";
+import { createAnthropicProvider, type Messages } from "@/agents/providers/anthropic";
+import { createCompatProvider } from "@/agents/providers/openai-compatible";
+import type { ProviderStatus } from "@/agents/providers/types";
 import type { ResearchConfig } from "@/infrastructure/config/env";
-import { agentPermissions, auditLogs, budgets, executionEvents, executionRuns, knowledgeDocuments, modelUsage, tasks } from "@/infrastructure/db/schema";
+import { agentPermissions, agents, auditLogs, budgets, executionEvents, executionRuns, knowledgeDocuments, modelUsage, tasks } from "@/infrastructure/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/infrastructure/db/test-database";
 import { monthStart } from "../budgets/spend-guard";
 import { KnowledgeService, ownerContext } from "../knowledge";
@@ -26,7 +28,6 @@ let f: Fixture;
 let n = 0;
 
 const config: ResearchConfig = {
-  model: "claude-opus-5-5",
   effort: "medium",
   allowedDomains: ["wikipedia.org"],
   maxRunMicros: 1_000_000,
@@ -90,7 +91,11 @@ beforeEach(async () => {
   await tdb.db.insert(agentPermissions).values(
     (["research.web_search", "research.web_fetch", "knowledge.write"] as const).map((permission) => ({ agentId: f.agents.research, permission, grantedBy: "test" })),
   );
+  // These tests script Claude responses: assign the agent to Claude.
+  await tdb.db.update(agents).set({ modelProvider: "anthropic", modelName: "claude-opus-5-5" }).where(eq(agents.id, f.agents.research));
 });
+
+const READY: ProviderStatus = { ready: true, keyConfigured: true, enabled: true, reason: "test" };
 
 async function setBudgets(limitMicros = 5_000_000) {
   const periodStart = monthStart(new Date());
@@ -100,8 +105,20 @@ async function setBudgets(limitMicros = 5_000_000) {
   ]);
 }
 
+/** Provider lookup that serves Claude from a scripted client and records every provider requested. */
+function lookup(messages: () => Messages, status: ProviderStatus = READY) {
+  const requested: string[] = [];
+  const anthropic = createAnthropicProvider({ messages, status: () => status });
+  const fn = (id: "anthropic" | "openai" | "xai") => {
+    requested.push(id);
+    if (id !== "anthropic") throw new Error(`provider ${id} must not be used`);
+    return anthropic;
+  };
+  return Object.assign(fn, { requested });
+}
+
 function worker(messages: () => Messages, extra: Partial<ConstructorParameters<typeof ResearchWorker>[0]> = {}) {
-  return new ResearchWorker({ db: tdb.db, knowledge: new KnowledgeService({ root: vault }), messages, config, workerId: `w-${n}`, backoffBaseMs: 0, ...extra });
+  return new ResearchWorker({ db: tdb.db, knowledge: new KnowledgeService({ root: vault }), providers: lookup(messages), config, workerId: `w-${n}`, backoffBaseMs: 0, ...extra });
 }
 
 async function submit(question = "When was the Hubble Space Telescope launched, and what does it observe?") {
@@ -162,15 +179,55 @@ test("no budget: fails before any API call, error surfaced on the task", async (
 test("provider not configured: clear, non-retryable failure", async () => {
   await setBudgets();
   const id = await submit();
-  const w = worker(() => {
-    const e = new Error("No API key for the app (AEHQ_ANTHROPIC_API_KEY is not set).");
-    e.name = "ProviderNotConfiguredError";
-    throw e;
-  });
-  await w.tick();
+  const providers = lookup(() => scripted(goodScript()), { ready: false, keyConfigured: false, enabled: true, reason: "No API key for the app (AEHQ_ANTHROPIC_API_KEY is not set)." });
+  await worker(() => scripted([]), { providers }).tick();
   const t = await taskRow(id);
   assert.equal(t.state, "failed");
-  assert.match(t.lastError ?? "", /AEHQ_ANTHROPIC_API_KEY/);
+  assert.match(t.lastError ?? "", /Claude \(Anthropic\) is not configured: .*AEHQ_ANTHROPIC_API_KEY/);
+});
+
+test("each task uses exactly ONE provider: the one assigned to its agent", async () => {
+  await setBudgets();
+  const id = await submit();
+  const providers = lookup(() => scripted(goodScript()));
+  await worker(() => scripted([]), { providers }).tick();
+  assert.equal((await taskRow(id)).state, "completed");
+  assert.deepEqual(providers.requested, ["anthropic"]);
+  const rows = await tdb.db.select().from(modelUsage).where(eq(modelUsage.organizationId, f.orgId));
+  assert.ok(rows.length > 0 && rows.every((r) => r.provider === "anthropic"));
+});
+
+test("reassigned to Grok: the same task type runs on xAI and usage is recorded as xai", async () => {
+  await setBudgets();
+  await tdb.db.update(agents).set({ modelProvider: "xai", modelName: "grok-4.7" }).where(eq(agents.id, f.agents.research));
+  const id = await submit();
+  const url = "https://en.wikipedia.org/wiki/Hubble_Space_Telescope";
+  const reply = (output: unknown[]) => ({ id: "r", model: "grok-4.7", status: "completed", output, usage: { input_tokens: 1500, output_tokens: 200, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } }, incomplete_details: null, error: null });
+  const script = [
+    reply([
+      { type: "web_search_call", id: "ws1", status: "completed", action: { type: "search", query: "Hubble", sources: [{ type: "url", url }] } },
+      { type: "message", id: "m1", role: "assistant", status: "completed", content: [{ type: "output_text", text: "Found it.", annotations: [{ type: "url_citation", url, title: "Hubble", start_index: 0, end_index: 1 }] }] },
+      { type: "function_call", id: "fc1", call_id: "call1", name: "submit_report", arguments: JSON.stringify((goodScript()[1] as { content: { input: unknown }[] }).content[0]!.input), status: "completed" },
+    ]),
+  ];
+  const requested: string[] = [];
+  const xai = createCompatProvider("xai", { responses: () => ({ create: async () => script.shift() }) as never, status: () => READY });
+  const providers = (p: "anthropic" | "openai" | "xai") => {
+    requested.push(p);
+    if (p !== "xai") throw new Error(`provider ${p} must not be used`);
+    return xai;
+  };
+  await worker(() => scripted([]), { providers }).tick();
+  const t = await taskRow(id);
+  assert.equal(t.state, "completed", t.lastError ?? "");
+  assert.match(t.resultSummary ?? "", /1\/1 sources verified/);
+  assert.deepEqual(requested, ["xai"]);
+  const rows = await tdb.db.select().from(modelUsage).where(eq(modelUsage.organizationId, f.orgId));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]!.provider, "xai");
+  assert.equal(rows[0]!.model, "grok-4.7");
+  // 1500 in x $2 + 200 out x $6 per MTok + 1 search x $0.025 = 0.003 + 0.0012 + 0.025
+  assert.equal(rows[0]!.costMicros, 29_200);
 });
 
 test("transient API errors are retried; the second attempt succeeds", async () => {

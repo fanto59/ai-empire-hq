@@ -4,10 +4,10 @@ export async function startInProcessWorker() {
   const config = loadRuntimeConfig();
   if (config.workerMode !== "in-process") return;
 
-  const { anthropicStatus, createAnthropicMessages } = await import("@/agents/providers/anthropic");
-  const status = anthropicStatus();
-  if (!status.ready) {
-    console.warn(`[research-worker] not started: ${status.reason}`);
+  const { getProvider, PROVIDER_IDS } = await import("@/agents/providers/registry");
+  const ready = PROVIDER_IDS.filter((id) => getProvider(id).status().ready);
+  if (ready.length === 0) {
+    console.warn(`[workers] not started: no model provider is ready (${getProvider("anthropic").status().reason})`);
     return;
   }
   const [{ getDatabase }, { getKnowledgeService }, { ResearchWorker, startResearchWorkerLoop }, { ChiefWorker }] = await Promise.all([
@@ -18,17 +18,17 @@ export async function startInProcessWorker() {
   ]);
   const db = await getDatabase();
   if (!db) {
-    console.warn("[research-worker] not started: no database configured.");
+    console.warn("[workers] not started: no database configured.");
     return;
   }
   const g = globalThis as unknown as { __aehqWorkerStop?: () => void };
   g.__aehqWorkerStop?.(); // dev hot reload: never run two loops
-  const shared = { db, knowledge: getKnowledgeService(), messages: createAnthropicMessages };
-  const stopResearch = startResearchWorkerLoop(new ResearchWorker({ ...shared, config: config.research, workerId: `web-research-${process.pid}` }));
-  const stopChief = startResearchWorkerLoop(new ChiefWorker({ ...shared, config: config.research, workerId: `web-chief-${process.pid}` }));
+  const shared = { db, knowledge: getKnowledgeService(), providers: getProvider, config: config.research };
+  const stopResearch = startResearchWorkerLoop(new ResearchWorker({ ...shared, workerId: `web-research-${process.pid}` }));
+  const stopChief = startResearchWorkerLoop(new ChiefWorker({ ...shared, workerId: `web-chief-${process.pid}` }));
   g.__aehqWorkerStop = () => {
     stopResearch();
     stopChief();
   };
-  console.log(`[workers] Research Agent and Chief AI Manager running in-process (model ${config.research.model}).`);
+  console.log(`[workers] Research Agent and Chief AI Manager running in-process (providers ready: ${ready.join(", ")}).`);
 }

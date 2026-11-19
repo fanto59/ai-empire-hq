@@ -1,4 +1,4 @@
-# Chief AI Manager (Claude API)
+# Chief AI Manager
 
 The organization-level agent. It takes an owner objective, reviews the
 organization's real records, and returns a proposed execution plan and an
@@ -61,15 +61,18 @@ ChiefWorker → claim (executive only) → authorize (active, chief-ai-manager, 
 
 ## Persistent task context
 
-The conversation is saved in `agent_task_contexts` after every step. If an
-attempt fails transiently, the retry resumes from the saved context (and the
-work-request count carries over) instead of starting over.
+The conversation is saved in `agent_task_contexts` after every step (the
+provider transcript plus the input not yet sent). If an attempt fails
+transiently, the retry resumes from the saved context (and the work-request
+count carries over) instead of starting over. If the owner switched the
+Chief to another model in between, the objective starts over on the new model.
 
 ## Setup
 
-Same switches and key as the Research Agent (see
-[RESEARCH_AGENT.md](RESEARCH_AGENT.md)): `AEHQ_ANTHROPIC_API_KEY`,
-`AGENT_EXECUTION_ENABLED=true`, `PROVIDER_ANTHROPIC_ENABLED=true`, and a
+Runs on the model assigned on **/models** (initially OpenAI `gpt-6.2-sol`,
+strategy work; see [MODEL_PROVIDERS.md](MODEL_PROVIDERS.md)). Needs that
+provider's app key and switch (e.g. `AEHQ_OPENAI_API_KEY` +
+`PROVIDER_OPENAI_ENABLED=true`), `AGENT_EXECUTION_ENABLED=true`, and a
 worker (`AGENT_WORKER=in-process` or `npm run worker`). Set an organization
 budget with `npm run budget:set -- --usd 2`. A fresh `npm run db:setup` gives
 the seeded Chief `org.read`, `task.request` and `knowledge.write`.

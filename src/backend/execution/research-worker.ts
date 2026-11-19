@@ -1,23 +1,27 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { eq } from "drizzle-orm";
 import { ChiefError } from "@/agents/chief/agent";
-import { runResearch, ResearchError, type Messages } from "@/agents/research/agent";
-import { formatUsd } from "@/agents/research/pricing";
+import { findModel, PROVIDER_LABELS } from "@/agents/providers/catalog";
+import { ProviderError } from "@/agents/providers/errors";
+import type { ProviderLookup } from "@/agents/providers/registry";
+import { runResearch, ResearchError } from "@/agents/research/agent";
+import { formatUsd } from "@/domain/money";
 import { renderReportMarkdown } from "@/agents/research/report";
 import type { ResearchConfig } from "@/infrastructure/config/env";
 import type { Db } from "@/infrastructure/db/client";
-import { agentPermissions, agents, businesses, knowledgeDocuments, projects } from "@/infrastructure/db/schema";
+import { agents, businesses, knowledgeDocuments, projects } from "@/infrastructure/db/schema";
 import { writeAudit } from "../audit";
 import { BudgetExceededError, SpendGuard } from "../budgets/spend-guard";
 import { businessAgentContext, KnowledgeError, KnowledgeService } from "../knowledge";
 import { slugify } from "../knowledge/paths";
 import { ServiceError } from "../errors";
+import { agentPermissionSet, resolveAgentModel } from "../models/assignment";
 import { ExecutionQueue, type ClaimedRun } from "./queue";
 
 /**
  * RESEARCH WORKER - executes `research` tasks end to end:
  *
- *   claim run → authorize agent → run.started event → Claude tool loop
+ *   claim run → authorize agent → resolve the agent's ONE assigned model →
+ *   run.started event → tool loop on that provider
  *   (budget-reserved calls, deadline + heartbeat) → verified report →
  *   knowledge vault note (+ knowledge_documents index) → complete
  *   or: error → run.failed event → fail (retry if transient)
@@ -30,8 +34,8 @@ import { ExecutionQueue, type ClaimedRun } from "./queue";
 export interface ResearchWorkerDeps {
   db: Db;
   knowledge: KnowledgeService;
-  /** Creates the Claude client; throws when the provider is not configured. */
-  messages: () => Messages;
+  /** Provider adapters; the agent's assigned provider is the ONLY one used per task. */
+  providers: ProviderLookup;
   config: ResearchConfig;
   workerId: string;
   now?: () => Date;
@@ -77,16 +81,23 @@ export class ResearchWorker {
       if (!agent || agent.status !== "active" || agent.businessId !== task.businessId || !task.businessId) {
         throw new ServiceError("forbidden", "The assigned agent is not an active agent of this business.");
       }
-      const perms = new Set(
-        (await db.select({ p: agentPermissions.permission }).from(agentPermissions).where(eq(agentPermissions.agentId, agent.id))).map((r) => r.p),
-      );
+      const perms = await agentPermissionSet(db, agent.id);
       const capabilities = { webSearch: perms.has("research.web_search"), webFetch: perms.has("research.web_fetch") };
       if (!capabilities.webSearch && !capabilities.webFetch) throw new ServiceError("forbidden", `${agent.displayName} has no approved research capability.`);
       if (!perms.has("knowledge.write")) throw new ServiceError("forbidden", `${agent.displayName} may not write to the knowledge vault.`);
       const [business] = await db.select().from(businesses).where(eq(businesses.id, task.businessId));
       const [project] = task.projectId ? await db.select().from(projects).where(eq(projects.id, task.projectId)) : [];
 
-      await event("run.started", { provider: "anthropic", model: config.model, trigger: "schedule", attempt: run.attempt });
+      // ---- the ONE model assigned to this agent (never several providers) ----
+      const assigned = resolveAgentModel(agent, perms);
+      if (!findModel(assigned.model)?.webSearch) {
+        throw new ServiceError("forbidden", `${assigned.model} cannot search the web with domain limits; assign a web-search model to ${agent.displayName}.`);
+      }
+      const provider = this.deps.providers(assigned.provider);
+      const status = provider.status();
+      if (!status.ready) throw new ProviderError(assigned.provider, "not-configured", `${PROVIDER_LABELS[assigned.provider]} is not configured: ${status.reason}`);
+
+      await event("run.started", { provider: assigned.provider, model: assigned.model, trigger: "schedule", attempt: run.attempt });
 
       // ---- time limits: task deadline + heartbeat ------------------------------
       const deadline = (run.deadlineAt ?? new Date(this.now().getTime() + task.timeoutSeconds * 1000)).getTime();
@@ -102,13 +113,13 @@ export class ResearchWorker {
       // ---- run the agent ---------------------------------------------------------
       spend = new SpendGuard(
         db,
-        { organizationId: task.organizationId, businessId: task.businessId, agentId: agent.id, runId: run.id, provider: "anthropic", maxRunMicros: config.maxRunMicros },
+        { organizationId: task.organizationId, businessId: task.businessId, agentId: agent.id, runId: run.id, provider: assigned.provider, maxRunMicros: config.maxRunMicros },
         this.now,
       );
       const guard = spend;
       const result = await runResearch({
-        messages: this.deps.messages(),
-        model: config.model,
+        provider,
+        model: assigned.model,
         question: task.description,
         allowedDomains: config.allowedDomains,
         capabilities,
@@ -207,14 +218,13 @@ export function classify(error: unknown, spend: SpendGuard | null): { message: s
   if (error instanceof ResearchError) return { message: `${error.message}${spent}`, retryable: error.retryable, code: error.code.toUpperCase() };
   if (error instanceof ServiceError) return { message: error.message, retryable: false, code: error.code.toUpperCase() };
   if (error instanceof KnowledgeError) return { message: `Could not save the report: ${error.message}`, retryable: false, code: "KNOWLEDGE_ERROR" };
-  if (error instanceof Error && error.name === "ProviderNotConfiguredError") return { message: `Claude API not configured: ${error.message}`, retryable: false, code: "PROVIDER_NOT_CONFIGURED" };
-  if (error instanceof Anthropic.AuthenticationError) return { message: "The Claude API rejected the app's API key (401). Check AEHQ_ANTHROPIC_API_KEY.", retryable: false, code: "AUTHENTICATION" };
-  if (error instanceof Anthropic.PermissionDeniedError) return { message: "The API key is not allowed to use this model or feature (403).", retryable: false, code: "PERMISSION_DENIED" };
-  if (error instanceof Anthropic.RateLimitError) return { message: `Claude API rate limit reached (429); will retry.${spent}`, retryable: true, code: "RATE_LIMITED" };
-  if (error instanceof Anthropic.BadRequestError) return { message: `The Claude API rejected the request (400): ${error.message.slice(0, 300)}`, retryable: false, code: "BAD_REQUEST" };
-  if (error instanceof Anthropic.InternalServerError) return { message: `Claude API server error (${error.status}); will retry.${spent}`, retryable: true, code: "API_SERVER_ERROR" };
-  if (error instanceof Anthropic.APIConnectionError) return { message: `Could not reach the Claude API (${error.message.slice(0, 120)}); will retry.`, retryable: true, code: "CONNECTION" };
-  if (error instanceof Anthropic.APIError) return { message: `Claude API error ${error.status ?? ""}: ${error.message.slice(0, 300)}`, retryable: false, code: "API_ERROR" };
+  if (error instanceof ProviderError) {
+    return {
+      message: error.retryable ? `${error.message.replace(/\.$/, "")}; will retry.${spent}` : error.message,
+      retryable: error.retryable,
+      code: error.kind.toUpperCase().replace(/-/g, "_"),
+    };
+  }
   console.error("[research-worker] unexpected error", error instanceof Error ? error.message : error);
   return { message: "Unexpected worker error (see server logs).", retryable: false, code: "INTERNAL" };
 }

@@ -39,7 +39,16 @@ is added deliberately, behind explicit gates.
 - The event bus filters subscriptions by `businessId`.
 - HQ-level data uses `businessId: null` and is visible only to HQ-level roles.
 
-## Research Agent (Claude API)
+## Model providers
+
+See [MODEL_PROVIDERS.md](MODEL_PROVIDERS.md). One dedicated key variable per
+provider (`AEHQ_*`), read only by its adapter, endpoints pinned, SDK
+environment fallbacks disabled; keys never reach the browser. OpenAI/xAI
+calls use `store: false`; only function tools and domain-limited web search
+are sent and any other tool output is refused. Model changes need a person
+with `models:admin` and are audited. Each task runs on one model only.
+
+## Research Agent
 
 See [RESEARCH_AGENT.md](RESEARCH_AGENT.md). Dedicated key variable read only
 by the provider adapter (endpoint pinned; other Claude credentials ignored),

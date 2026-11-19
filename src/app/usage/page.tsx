@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatUsd } from "@/agents/research/pricing";
+import { formatUsd } from "@/domain/money";
 import { getDashboardOrganization, getDatabase } from "@/backend/db";
 import { getUsageReport, type UsageBreakdownRow } from "@/backend/usage/report";
 import { DatabaseSetupNotice, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
@@ -27,7 +27,7 @@ export default async function UsagePage() {
           {org?.isTestData && <TestDataBadge />}
         </div>
         <p className="mt-2 max-w-2xl text-slate-400">
-          Every Claude API call your agents make is recorded with its tokens and cost. Days are in UTC. Hosting and other
+          Every model API call your agents make (Claude, OpenAI or Grok) is recorded with its tokens and cost. Days are in UTC. Hosting and other
           costs are not tracked here; this is the AI spend of running the empire.
         </p>
       </header>

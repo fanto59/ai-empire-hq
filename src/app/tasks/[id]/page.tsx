@@ -5,7 +5,7 @@ import { getDashboardOrganization, getDatabase } from "@/backend/db";
 import { ServiceError } from "@/backend/errors";
 import { TaskService, type TaskDetail } from "@/backend/tasks/service";
 import { DatabaseSetupNotice, TaskStateBadge, TestDataBadge } from "@/frontend/tasks/TaskStateBadge";
-import { formatUsd } from "@/agents/research/pricing";
+import { formatUsd } from "@/domain/money";
 import { noteHref } from "@/frontend/knowledge/Markdown";
 import { AutoRefresh } from "@/frontend/tasks/AutoRefresh";
 import { PlanView, type PlanData } from "@/frontend/tasks/PlanView";

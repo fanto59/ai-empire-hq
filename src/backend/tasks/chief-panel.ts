@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { anthropicStatus } from "@/agents/providers/anthropic";
+import { PROVIDER_LABELS } from "@/agents/providers/catalog";
+import { getProvider } from "@/agents/providers/registry";
+import { agentPermissionSet, resolveAgentModel } from "../models/assignment";
 import { loadRuntimeConfig } from "@/infrastructure/config/env";
 import type { Db } from "@/infrastructure/db/client";
 import { budgets, executionEvents, executionRuns, knowledgeDocuments, modelUsage, tasks } from "@/infrastructure/db/schema";
@@ -12,7 +14,6 @@ import { findChiefAgent } from "./executive";
  */
 export async function loadChiefPanel(db: Db, organizationId: string, signedIn: boolean) {
   const config = loadRuntimeConfig();
-  const provider = anthropicStatus();
   const [chief, recent, orgBudget] = await Promise.all([
     findChiefAgent(db, organizationId),
     db
@@ -27,6 +28,8 @@ export async function loadChiefPanel(db: Db, organizationId: string, signedIn: b
       .where(and(eq(budgets.organizationId, organizationId), isNull(budgets.businessId), eq(budgets.periodStart, monthStart(new Date())))),
   ]);
 
+  const assigned = chief ? resolveAgentModel(chief, await agentPermissionSet(db, chief.id)) : null;
+  const provider = assigned ? getProvider(assigned.provider).status() : { ready: false, reason: "No Chief AI Manager is configured." };
   const ids = recent.map((t) => t.id);
   const [events, costs, docs] = ids.length
     ? await Promise.all([
@@ -72,6 +75,8 @@ export async function loadChiefPanel(db: Db, organizationId: string, signedIn: b
     agentReady: chief !== null,
     providerReady: provider.ready,
     providerReason: provider.reason,
+    providerLabel: assigned ? PROVIDER_LABELS[assigned.provider] : null,
+    model: assigned?.model ?? null,
     workerInProcess: config.workerMode === "in-process",
     signedIn,
     orgBudget: orgBudget[0] ?? null,

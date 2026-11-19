@@ -1,4 +1,4 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolSpec } from "../providers/types";
 
 /**
  * CHIEF AI MANAGER - TOOL SURFACE (the complete list; nothing else exists)
@@ -34,24 +34,21 @@ const obj = (properties: Record<string, unknown>) => ({
 
 export const TASK_STATES_FOR_TOOLS = ["queued", "assigned", "running", "waiting", "paused", "completed", "failed", "canceled"];
 
-export const CHIEF_TOOLS: Anthropic.Beta.BetaTool[] = [
+export const CHIEF_TOOLS: ToolSpec[] = [
   {
     name: "list_businesses",
     description: "List every business sector in the organization with its status. Read-only.",
-    strict: true,
-    input_schema: obj({}),
+    inputSchema: obj({}),
   },
   {
     name: "list_projects",
     description: "List projects, optionally for one business (business_id) or headquarters only (business_id = \"hq\"). Read-only.",
-    strict: true,
-    input_schema: obj({ business_id: nullable({ type: "string" }) }),
+    inputSchema: obj({ business_id: nullable({ type: "string" }) }),
   },
   {
     name: "list_tasks",
     description: "List tasks with state, assignee, result or last error. Filter by state and/or business_id (\"hq\" for headquarters). Read-only.",
-    strict: true,
-    input_schema: obj({
+    inputSchema: obj({
       state: nullable({ type: "string", enum: TASK_STATES_FOR_TOOLS }),
       business_id: nullable({ type: "string" }),
     }),
@@ -59,33 +56,28 @@ export const CHIEF_TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "get_task",
     description: "Get one task's description, state, result, error, dependencies and recent history. Read-only.",
-    strict: true,
-    input_schema: obj({ task_id: { type: "string" } }),
+    inputSchema: obj({ task_id: { type: "string" } }),
   },
   {
     name: "list_reports",
     description: "List research reports and other notes in the knowledge vault (titles and paths). Read-only.",
-    strict: true,
-    input_schema: obj({ business_id: nullable({ type: "string" }) }),
+    inputSchema: obj({ business_id: nullable({ type: "string" }) }),
   },
   {
     name: "read_report",
     description: "Read one knowledge-vault note by its path (from list_reports). Use this to review completed reports. Read-only.",
-    strict: true,
-    input_schema: obj({ path: { type: "string" } }),
+    inputSchema: obj({ path: { type: "string" } }),
   },
   {
     name: "get_budget_status",
     description: "This month's API budgets and spend for the organization and each business. Read-only; you cannot change budgets.",
-    strict: true,
-    input_schema: obj({}),
+    inputSchema: obj({}),
   },
   {
     name: REQUEST_TOOL,
     description:
       "Ask the Central Project Manager to take on a piece of work. Creates a request task that needs the owner's approval before it can be completed. It does not start execution, spend money, or assign other agents. Use sparingly (max 5).",
-    strict: true,
-    input_schema: obj({
+    inputSchema: obj({
       title: { type: "string", description: "Short imperative title." },
       description: { type: "string", description: "What is needed and why, and what done looks like." },
       business_id: nullable({ type: "string" }),
@@ -95,8 +87,7 @@ export const CHIEF_TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: PLAN_TOOL,
     description: "Submit your final executive plan and briefing. Call exactly once, when your review is complete.",
-    strict: true,
-    input_schema: obj({
+    inputSchema: obj({
       objective: { type: "string", description: "The owner's goal, restated precisely." },
       summary: { type: "string", description: "2-4 sentence executive summary." },
       priorities: {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runResearch, ResearchError, type Messages, type ResearchHooks, type ToolActivity } from "./agent";
-import { costMicros, priceFor, worstCaseMicros } from "./pricing";
+import { createAnthropicProvider, type Messages } from "../providers/anthropic";
+import { estimateCostMicros, priceOf, worstCaseMicros } from "../providers/cost";
+import { runResearch, ResearchError, type ResearchHooks, type ToolActivity } from "./agent";
 import { renderReportMarkdown, verifyReport } from "./report";
 
 /**
@@ -93,7 +94,7 @@ function hooks(opts: { budgetMicros?: number } = {}) {
 }
 
 const base = (messages: Messages, h: ResearchHooks) => ({
-  messages,
+  provider: createAnthropicProvider({ messages: () => messages }),
   model: "claude-opus-5-5",
   question: "What is an example?",
   allowedDomains: ["wikipedia.org"],
@@ -181,10 +182,11 @@ test("an aborted signal (timeout) stops the loop and releases the reservation", 
 });
 
 test("pricing is conservative and in micro-dollars", () => {
-  assert.equal(costMicros({ input_tokens: 1_000_000, output_tokens: 0 }, priceFor("claude-opus-5-5")), 4_000_000);
-  assert.equal(costMicros({ input_tokens: 0, output_tokens: 0, server_tool_use: { web_search_requests: 3 } }, priceFor("claude-opus-5-5")), 30_000);
-  assert.ok(priceFor("unknown-model").outputPerMTok >= priceFor("claude-fable-5-2").outputPerMTok);
-  assert.ok(worstCaseMicros(3000, 16_000, 5, priceFor("claude-opus-5-5")) > 16_000 * 20);
+  const u = (o: Partial<Record<string, number>>) => ({ inputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, webSearches: 0, webFetches: 0, ...o });
+  assert.equal(estimateCostMicros("anthropic", u({ inputTokens: 1_000_000 }), priceOf("claude-opus-5-5")), 4_000_000);
+  assert.equal(estimateCostMicros("anthropic", u({ webSearches: 3 }), priceOf("claude-opus-5-5")), 30_000);
+  assert.ok(priceOf("unknown-model").outputPerMTok >= priceOf("claude-fable-5-2").outputPerMTok);
+  assert.ok(worstCaseMicros("anthropic", 3000, 16_000, 5, priceOf("claude-opus-5-5")) > 16_000 * 20);
 });
 
 test("report markdown marks AI origin, uncertain findings and unverified sources", () => {

@@ -39,13 +39,15 @@ export async function seedTestData(db: Db, now: () => Date = () => new Date()): 
     .returning();
   const [dept] = await db.insert(departments).values({ businessId: bizA!.id, slug: "research", name: "Research" }).returning();
 
+  // Initial model roles (adjustable on /models): OpenAI for strategy, Grok for
+  // research, Claude for engineering and complex execution.
   const agentRows = await db
     .insert(agents)
     .values([
-      { organizationId: orgId, businessId: null, slug: "test-chief", displayName: "Test Chief AI Manager", role: "chief-ai-manager", status: "active", modelProvider: "anthropic" },
-      { organizationId: orgId, businessId: null, slug: "test-pm", displayName: "Test Central Project Manager", role: "central-project-manager", status: "active", modelProvider: "openai" },
-      { organizationId: orgId, businessId: bizA!.id, departmentId: dept!.id, slug: "test-research", displayName: "Test Research Agent", role: "specialist", status: "active", modelProvider: "xai" },
-      { organizationId: orgId, businessId: bizB!.id, slug: "test-ops", displayName: "Test Operations Agent", role: "business-lead", status: "active", modelProvider: "anthropic" },
+      { organizationId: orgId, businessId: null, slug: "test-chief", displayName: "Test Chief AI Manager", role: "chief-ai-manager", status: "active", modelProvider: "openai", modelName: "gpt-6.2-sol" },
+      { organizationId: orgId, businessId: null, slug: "test-pm", displayName: "Test Central Project Manager", role: "central-project-manager", status: "active", modelProvider: "openai", modelName: "gpt-6.2-sol" },
+      { organizationId: orgId, businessId: bizA!.id, departmentId: dept!.id, slug: "test-research", displayName: "Test Research Agent", role: "specialist", status: "active", modelProvider: "xai", modelName: "grok-4.7" },
+      { organizationId: orgId, businessId: bizB!.id, slug: "test-ops", displayName: "Test Operations Agent", role: "business-lead", status: "active", modelProvider: "anthropic", modelName: "claude-opus-5-5" },
     ])
     .returning();
   const agent = (slug: string) => agentRows.find((a) => a.slug === slug)!.id;

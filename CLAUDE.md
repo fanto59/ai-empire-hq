@@ -11,9 +11,10 @@ a Central Project Manager, isolated business sectors, animated isometric AI
 employees (PixiJS), Obsidian knowledge, and Claude / OpenAI / Grok model
 providers.
 
-**Current phase: first real agents.** The Research Agent (read-only web
-research) and the Chief AI Manager (reads organization records, proposes plans)
-call the Claude API (owner-approved); all data is test data and nothing else
+**Current phase: first real agents, multi-model.** The Research Agent
+(read-only web research) and the Chief AI Manager (reads organization records,
+proposes plans) run on Claude, OpenAI or Grok (all three owner-approved), one
+model per agent, chosen on /models; all data is test data and nothing else
 external is connected.
 
 ## Hard rules (never break these)
@@ -21,8 +22,8 @@ external is connected.
 1. **Do not use OpenClaw.** Do not add it as a dependency or reference it.
 2. **Only touch this repository.** Never modify the owner's other repositories.
 3. **No paid services.** Do not add SDKs, keys, or config for paid APIs/hosting
-   unless the owner explicitly asks in that task. (The owner approved the Claude
-   API for the Research Agent; see docs/RESEARCH_AGENT.md.)
+   unless the owner explicitly asks in that task. (The owner approved the
+   Claude, OpenAI and xAI APIs for agents; see docs/MODEL_PROVIDERS.md.)
 4. **No public deployment.** Do not deploy, publish, or expose this app.
 5. **No real business accounts.** Never connect to or read real business
    accounts (email, payments, social, stores, banks, ...).
@@ -38,11 +39,14 @@ external is connected.
    need stated in the PR. Pin exact versions.
 9. **Work on a branch and open a PR** for review. Never push to `main`.
 
-10. **Agent credentials and capabilities.** Agents use only the app's own key
-    (`AEHQ_ANTHROPIC_API_KEY`, endpoint pinned) - never Claude Code session
-    credentials or other `ANTHROPIC_*` variables. Agents get an explicit tool
-    allowlist: no shell, no filesystem, no database access, no messaging.
-    Every paid call reserves budget first (SpendGuard).
+10. **Agent credentials and capabilities.** Agents use only the app's own keys
+    (`AEHQ_ANTHROPIC_API_KEY`, `AEHQ_OPENAI_API_KEY`, `AEHQ_XAI_API_KEY`;
+    endpoints pinned) - never Claude Code session credentials or other
+    `ANTHROPIC_*` / `OPENAI_*` variables. Keys never reach the browser.
+    Agents get an explicit tool allowlist: no shell, no filesystem, no
+    database access, no messaging. Every paid call reserves budget first
+    (SpendGuard). Each task runs on ONE model (its agent's); never fan a task
+    out to several providers.
 11. **Agents recommend; people decide.** No agent may approve spending, change
     budgets or permissions, sign or execute contracts, or decide approval
     requests. Never add such a tool to an agent; route those items to the
@@ -75,7 +79,8 @@ npm run db:generate  # create a migration after editing the schema
 npm run db:token     # print a test API token once (also used to sign in)
 npm run budget:set   # set this month's API budget (test org; default $0)
 npm run worker       # standalone Research Agent worker (real PostgreSQL)
-npm run test:e2e     # LIVE Claude API test (needs AEHQ_ANTHROPIC_API_KEY)
+npm run test:e2e     # LIVE research test (E2E_MODEL, default claude-opus-5-5; needs its key)
+npm run test:providers  # LIVE low-cost test per provider with a key set (< $0.01 each)
 npm run build        # production build (.next/standalone output)
 npm start            # serve the production build
 npm run check        # typecheck + lint + test + build (run before every PR)
@@ -118,8 +123,12 @@ Import rules:
   an access context. Sync to Obsidian stays disabled until the owner approves.
 - Agent "activity" is derived from execution events (`deriveActivity`), never
   stored or simulated. Real runs record `origin: "live"` events.
-- Claude API code uses the official `@anthropic-ai/sdk`; keep model IDs,
-  prices (src/agents/research/pricing.ts) and tool versions current.
+- Model calls go through the provider interface (src/agents/providers/types.ts);
+  agents never import an SDK. Claude uses `@anthropic-ai/sdk`; OpenAI and xAI
+  use the official `openai` SDK (Responses API, `store: false`). Keep model IDs
+  and prices (src/agents/providers/catalog.ts) current; a model is assignable
+  only when the provider's live model list confirms it.
+- Model assignments change only via `setAgentModel` (models:admin, audited).
 - Renderers draw scene/floor data only; they never fetch or hold business logic.
 - Keep simulation, pathfinding and floor data pure (no PixiJS/React) and tested.
 - Feature flags default to disabled; only the exact string `"true"` enables.
@@ -134,6 +143,7 @@ Import rules:
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
-- `docs/RESEARCH_AGENT.md` - the Claude-powered Research Agent: flow, limits, credentials
+- `docs/MODEL_PROVIDERS.md` - Claude / OpenAI / Grok: interface, keys, safety, model config, evaluation
+- `docs/RESEARCH_AGENT.md` - the Research Agent: flow, limits, credentials
 - `docs/CHIEF_AI_MANAGER.md` - the Chief AI Manager agent: tools, boundaries, persistent context
 - `docs/DEPLOYMENT.md` - cloud-readiness notes (no deployment yet)

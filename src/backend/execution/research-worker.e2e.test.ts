@@ -4,8 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { eq } from "drizzle-orm";
-import { createAnthropicMessages } from "@/agents/providers/anthropic";
-import { agentPermissions, budgets, executionEvents, knowledgeDocuments, modelUsage, tasks } from "@/infrastructure/db/schema";
+import { findModel } from "@/agents/providers/catalog";
+import { PROVIDER_KEY_VARS } from "@/agents/providers/errors";
+import { getProvider } from "@/agents/providers/registry";
+import { agentPermissions, agents, budgets, executionEvents, knowledgeDocuments, modelUsage, tasks } from "@/infrastructure/db/schema";
 import { createTestDatabase, type TestDatabase } from "@/infrastructure/db/test-database";
 import { monthStart } from "../budgets/spend-guard";
 import { KnowledgeService, ownerContext } from "../knowledge";
@@ -14,17 +16,20 @@ import { createResearchTask } from "../tasks/research";
 import { ResearchWorker } from "./research-worker";
 
 /**
- * LIVE END-TO-END TEST - calls the real Claude API and spends real money
+ * LIVE END-TO-END TEST - calls a real model API and spends real money
  * (bounded: $1.00 hard cap, 3 searches, Wikipedia only).
  *
- * Runs only when explicitly enabled AND the app's own key is present:
+ * Runs only when explicitly enabled AND the app's own key for the chosen
+ * model's provider is present (default model claude-opus-5-5):
  *   AEHQ_ANTHROPIC_API_KEY=... npm run test:e2e
- * It never uses any other Claude credential on the machine.
+ *   E2E_MODEL=grok-4.7 AEHQ_XAI_API_KEY=... npm run test:e2e
+ * It never uses any other credential on the machine.
  *
  * Everything else is isolated: a throwaway database and a temporary
  * knowledge vault, deleted afterwards.
  */
-const enabled = process.env.RUN_LIVE_E2E === "true" && Boolean(process.env.AEHQ_ANTHROPIC_API_KEY?.trim());
+const MODEL = findModel(process.env.E2E_MODEL?.trim() || "claude-opus-5-5");
+const enabled = process.env.RUN_LIVE_E2E === "true" && Boolean(MODEL && process.env[PROVIDER_KEY_VARS[MODEL.provider]]?.trim());
 const QUESTION = "When was the Hubble Space Telescope launched, which space shuttle carried it, and what are its main scientific instruments?";
 
 let tdb: TestDatabase;
@@ -39,6 +44,7 @@ before(async () => {
   await tdb.db.insert(agentPermissions).values(
     (["research.web_search", "research.web_fetch", "knowledge.write"] as const).map((permission) => ({ agentId: f.agents.research, permission, grantedBy: "e2e" })),
   );
+  await tdb.db.update(agents).set({ modelProvider: MODEL!.provider, modelName: MODEL!.id }).where(eq(agents.id, f.agents.research));
   const periodStart = monthStart(new Date());
   await tdb.db.insert(budgets).values([
     { organizationId: f.orgId, businessId: null, periodStart, limitMicros: 1_000_000 },
@@ -52,14 +58,14 @@ after(async () => {
   await fs.rm(vault, { recursive: true, force: true });
 });
 
-test("live: research task → Claude with web search → verified report in the vault → completed", { timeout: 12 * 60_000 }, async (t) => {
+test("live: research task → assigned model with web search → verified report in the vault → completed", { timeout: 12 * 60_000 }, async (t) => {
   if (!enabled) {
-    t.skip("set RUN_LIVE_E2E=true and AEHQ_ANTHROPIC_API_KEY to run (npm run test:e2e)");
+    t.skip("set RUN_LIVE_E2E=true and the app key for E2E_MODEL's provider to run (npm run test:e2e)");
     return;
   }
   // The provider requires these switches; set for this test process only.
   process.env.AGENT_EXECUTION_ENABLED = "true";
-  process.env.PROVIDER_ANTHROPIC_ENABLED = "true";
+  process.env[`PROVIDER_${MODEL!.provider.toUpperCase()}_ENABLED`] = "true";
 
   const { task } = await createResearchTask(tdb.db, userCtx(f.orgId), { businessId: f.bizA, question: QUESTION });
   assert.equal(task.state, "assigned");
@@ -67,9 +73,8 @@ test("live: research task → Claude with web search → verified report in the 
   const worker = new ResearchWorker({
     db: tdb.db,
     knowledge: new KnowledgeService({ root: vault }),
-    messages: createAnthropicMessages,
+    providers: getProvider,
     config: {
-      model: process.env.RESEARCH_MODEL?.trim() || "claude-opus-5-5",
       effort: "medium",
       allowedDomains: ["wikipedia.org"],
       maxRunMicros: 1_000_000,
@@ -84,7 +89,7 @@ test("live: research task → Claude with web search → verified report in the 
   const events = await tdb.db.select().from(executionEvents).where(eq(executionEvents.taskId, task.id));
   const usage = await tdb.db.select().from(modelUsage).where(eq(modelUsage.organizationId, f.orgId));
   const cost = usage.reduce((a, u) => a + u.costMicros, 0);
-  console.log(`\n[e2e] state=${row!.state} attempt=${row!.attempt} cost=$${(cost / 1e6).toFixed(4)} calls=${usage.length}`);
+  console.log(`\n[e2e] model=${MODEL!.id} state=${row!.state} attempt=${row!.attempt} cost=$${(cost / 1e6).toFixed(4)} calls=${usage.length}`);
   console.log(`[e2e] events: ${events.map((e) => e.type).join(", ")}`);
   console.log(`[e2e] ${row!.resultSummary ?? row!.lastError}`);
 

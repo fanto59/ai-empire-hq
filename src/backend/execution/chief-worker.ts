@@ -1,11 +1,14 @@
 import { eq } from "drizzle-orm";
-import { runChief, type ChiefHooks } from "@/agents/chief/agent";
+import { resumableContext, runChief, type ChiefHooks } from "@/agents/chief/agent";
 import { renderBriefing } from "@/agents/chief/plan";
-import { formatUsd } from "@/agents/research/pricing";
-import type { Messages } from "@/agents/research/agent";
+import { formatUsd } from "@/domain/money";
+import { PROVIDER_LABELS } from "@/agents/providers/catalog";
+import { ProviderError } from "@/agents/providers/errors";
+import type { ProviderLookup } from "@/agents/providers/registry";
 import type { ResearchConfig } from "@/infrastructure/config/env";
 import type { Db } from "@/infrastructure/db/client";
-import { agentPermissions, agentTaskContexts, agents, knowledgeDocuments } from "@/infrastructure/db/schema";
+import { agentTaskContexts, agents, knowledgeDocuments } from "@/infrastructure/db/schema";
+import { agentPermissionSet, resolveAgentModel } from "../models/assignment";
 import { writeAudit } from "../audit";
 import { SpendGuard } from "../budgets/spend-guard";
 import { ServiceError } from "../errors";
@@ -26,8 +29,9 @@ import { classify } from "./research-worker";
 export interface ChiefWorkerDeps {
   db: Db;
   knowledge: KnowledgeService;
-  messages: () => Messages;
-  config: Pick<ResearchConfig, "model" | "effort" | "maxRunMicros">;
+  /** Provider adapters; the Chief's assigned provider is the ONLY one used per objective. */
+  providers: ProviderLookup;
+  config: Pick<ResearchConfig, "effort" | "maxRunMicros">;
   workerId: string;
   now?: () => Date;
   leaseMs?: number;
@@ -69,10 +73,15 @@ export class ChiefWorker {
       if (!agent || agent.status !== "active" || agent.role !== "chief-ai-manager" || agent.businessId !== null || task.businessId !== null) {
         throw new ServiceError("forbidden", "Executive objectives can only be executed by the active, headquarters-level Chief AI Manager.");
       }
-      const perms = new Set((await db.select({ p: agentPermissions.permission }).from(agentPermissions).where(eq(agentPermissions.agentId, agent.id))).map((r) => r.p));
+      const perms = await agentPermissionSet(db, agent.id);
       if (!perms.has("org.read")) throw new ServiceError("forbidden", `${agent.displayName} lacks read access to organization records (org.read).`);
 
-      await event("run.started", { provider: "anthropic", model: config.model, trigger: "owner", attempt: run.attempt });
+      const assigned = resolveAgentModel(agent, perms);
+      const provider = this.deps.providers(assigned.provider);
+      const status = provider.status();
+      if (!status.ready) throw new ProviderError(assigned.provider, "not-configured", `${PROVIDER_LABELS[assigned.provider]} is not configured: ${status.reason}`);
+
+      await event("run.started", { provider: assigned.provider, model: assigned.model, trigger: "owner", attempt: run.attempt });
 
       const deadline = (run.deadlineAt ?? new Date(this.now().getTime() + task.timeoutSeconds * 1000)).getTime();
       timers.push(setTimeout(() => controller.abort(), Math.max(0, deadline - Date.now())));
@@ -83,11 +92,17 @@ export class ChiefWorker {
 
       // Persistent task context: resume a previous attempt's conversation.
       const [saved] = await db.select().from(agentTaskContexts).where(eq(agentTaskContexts.taskId, task.id));
-      if (saved) await event("run.step", { stepIndex: 0, summary: "Resuming from saved task context." });
+      if (saved) {
+        const same = resumableContext(saved.messages, assigned.provider, assigned.model);
+        await event("run.step", {
+          stepIndex: 0,
+          summary: same ? "Resuming from saved task context." : "Saved context was for a different model; starting the objective over on the assigned model.",
+        });
+      }
 
       spend = new SpendGuard(
         db,
-        { organizationId: task.organizationId, businessId: null, agentId: agent.id, runId: run.id, provider: "anthropic", maxRunMicros: config.maxRunMicros },
+        { organizationId: task.organizationId, businessId: null, agentId: agent.id, runId: run.id, provider: assigned.provider, maxRunMicros: config.maxRunMicros },
         this.now,
       );
       const guard = spend;
@@ -115,7 +130,8 @@ export class ChiefWorker {
             metadata: { tool: a.tool, allowed: a.allowed, detail: a.detail.slice(0, 200), runId: run.id },
             at: this.now(),
           }),
-        saveContext: async (messages) => {
+        saveContext: async (context) => {
+          const messages = context as unknown as Record<string, unknown>;
           await db
             .insert(agentTaskContexts)
             .values({ taskId: task.id, agentId: agent.id, messages, updatedAt: this.now() })
@@ -124,10 +140,10 @@ export class ChiefWorker {
       };
 
       const result = await runChief({
-        messages: this.deps.messages(),
-        model: config.model,
+        provider,
+        model: assigned.model,
         goal: task.description,
-        savedContext: (saved?.messages as Parameters<typeof runChief>[0]["savedContext"]) ?? null,
+        savedContext: saved?.messages ?? null,
         toolbox,
         signal: controller.signal,
         deadline,
