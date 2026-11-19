@@ -90,3 +90,16 @@ test("stream client: a closed connection reconnects with ?after=<last id>; 401 s
   assert.equal(FakeES.instances.length, 2, "no retries after 401");
   stop();
 });
+
+test("stream client: a silent connection (no health for too long) is resumed from the last id", async () => {
+  FakeES.instances = [];
+  const k = sink();
+  const stop = connectLiveStream(k.s, { EventSourceImpl: FakeES as unknown as typeof EventSource, fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch, silenceMs: 1_000 });
+  const es = FakeES.instances[0]!;
+  es.open();
+  es.emit("agent-event", { streamId: 5 }, "5");
+  await new Promise((r) => setTimeout(r, 1_400));
+  assert.equal(es.readyState, FakeES.CLOSED, "the silent connection was dropped");
+  assert.equal(FakeES.instances[1]?.url, "/api/v1/events/stream?after=5");
+  stop();
+});

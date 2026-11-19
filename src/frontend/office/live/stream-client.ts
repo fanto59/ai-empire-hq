@@ -21,6 +21,8 @@ export interface LiveSink {
 
 export interface StreamClientOptions {
   url?: string;
+  /** Reconnect when nothing (not even health, sent every 5 s) arrived for this long. */
+  silenceMs?: number;
   EventSourceImpl?: typeof EventSource;
   fetchImpl?: typeof fetch;
   maxBackoffMs?: number;
@@ -37,9 +39,12 @@ export function connectLiveStream(sink: LiveSink, opts: StreamClientOptions = {}
   let timer: ReturnType<typeof setTimeout> | undefined;
   /** Bumped per connection, so a late probe of an old connection can't override a newer one. */
   let generation = 0;
+  let lastMessageAt = Date.now();
+  const silenceMs = opts.silenceMs ?? 20_000;
 
   /** Data arriving means the stream works - unless the browser says it is offline. */
   const markLive = () => {
+    lastMessageAt = Date.now();
     if (typeof navigator === "undefined" || navigator.onLine !== false) sink.setConnection("live");
   };
 
@@ -55,6 +60,7 @@ export function connectLiveStream(sink: LiveSink, opts: StreamClientOptions = {}
     if (stopped) return;
     const gen = ++generation;
     sink.setConnection(lastId ? "reconnecting" : "connecting");
+    lastMessageAt = Date.now();
     const src = new ES(lastId ? `${url}?after=${encodeURIComponent(lastId)}` : url, { withCredentials: true });
     es = src;
     src.onopen = () => {
@@ -113,13 +119,19 @@ export function connectLiveStream(sink: LiveSink, opts: StreamClientOptions = {}
   };
 
   const onOffline = () => sink.setConnection("offline");
-  const onOnline = () => {
-    if (es && es.readyState === ES.OPEN) return;
+  /** Drops the current connection and resumes from the last event id (the server replay is idempotent). */
+  const reconnectNow = () => {
+    if (stopped) return;
     es?.close();
     clearTimeout(timer);
     backoff = 1_000;
     open();
   };
+  // A connection can look open while the network under it is gone: always resume after coming online.
+  const onOnline = () => reconnectNow();
+  const watchdog = setInterval(() => {
+    if (!stopped && es?.readyState === ES.OPEN && Date.now() - lastMessageAt > silenceMs) reconnectNow();
+  }, Math.max(1_000, Math.floor(silenceMs / 4)));
   if (typeof window !== "undefined") {
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
@@ -129,6 +141,7 @@ export function connectLiveStream(sink: LiveSink, opts: StreamClientOptions = {}
   return () => {
     stopped = true;
     clearTimeout(timer);
+    clearInterval(watchdog);
     es?.close();
     if (typeof window !== "undefined") {
       window.removeEventListener("offline", onOffline);
