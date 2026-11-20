@@ -82,7 +82,11 @@ export async function createExecutiveFloorRenderer(
   app.stage.addChild(world);
 
   const live = options.mode === "live";
-  const structure = buildStructure(plan, { displayLabel: live ? "LIVE · REAL AGENT EVENTS" : "PROTOTYPE · SIMULATION" });
+  const structure = buildStructure(plan, {
+    displayLabel: live ? "LIVE · REAL AGENT EVENTS" : "PROTOTYPE · SIMULATION",
+    // The Executive Floor's elevator opens the sectors; a sector floor's leads back to headquarters.
+    elevatorLabel: plan.id === "executive-floor" ? "SECTORS" : "HQ",
+  });
   world.addChild(structure.container);
 
   const sorted = new Container({ label: "sorted", sortableChildren: true });

@@ -21,13 +21,9 @@ export type Facing = "ne" | "nw" | "se" | "sw";
 
 export type FloorFinish = "walnut" | "oak" | "carpet" | "concrete" | "polished";
 
-export type RoomId =
-  | "chief-office"
-  | "pm-office"
-  | "conference"
-  | "corridor"
-  | "research"
-  | "board-lounge";
+/** Executive floor rooms are fixed; generated sector floors use one room per real business. */
+export type ExecutiveRoomId = "chief-office" | "pm-office" | "conference" | "corridor" | "research" | "board-lounge";
+export type RoomId = string;
 
 export interface Room {
   id: RoomId;

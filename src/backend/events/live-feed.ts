@@ -89,13 +89,16 @@ export async function currentCursor(db: Db, ctx: RequestContext): Promise<number
 
 async function visibleAgents(db: Db, ctx: RequestContext): Promise<LiveAgentInfo[]> {
   const rows = await db.select().from(agents).where(and(eq(agents.organizationId, ctx.organizationId), inArray(agents.status, ["active", "draft", "disabled"])));
-  const seen = rows.filter((a) => (a.businessId === null ? ctx.hq : ctx.businesses === "*" || ctx.businesses.includes(a.businessId)));
+  // Business agents: with business access. Sector agents: with organization-wide access. HQ agents: with HQ access.
+  const seen = rows.filter((a) =>
+    a.businessId !== null ? ctx.businesses === "*" || ctx.businesses.includes(a.businessId) : a.sectorId !== null ? ctx.businesses === "*" : ctx.hq,
+  );
   const perms = seen.length
     ? await db.select({ agentId: agentPermissions.agentId, p: agentPermissions.permission }).from(agentPermissions).where(inArray(agentPermissions.agentId, seen.map((a) => a.id)))
     : [];
   return seen.map((a) => {
     const m = resolveAgentModel(a, new Set(perms.filter((p) => p.agentId === a.id).map((p) => p.p)));
-    return { id: a.id, slug: a.slug, name: a.displayName, role: a.role, businessId: a.businessId, workType: m.workType, provider: m.provider, model: m.model };
+    return { id: a.id, slug: a.slug, name: a.displayName, role: a.role, businessId: a.businessId, sectorId: a.sectorId, workType: m.workType, provider: m.provider, model: m.model };
   });
 }
 

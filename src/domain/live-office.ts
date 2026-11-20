@@ -46,6 +46,8 @@ export interface LiveAgentInfo {
   name: string;
   role: string;
   businessId: string | null;
+  /** Sector-level agents (sector managers / specialists); null otherwise. */
+  sectorId: string | null;
   /** engineering | strategy | research - decides the agent's workstation on the floor. */
   workType: string;
   provider: string;

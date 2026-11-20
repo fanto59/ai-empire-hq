@@ -8,6 +8,7 @@ import { BudgetExceededError, SpendGuard, monthStart } from "../budgets/spend-gu
 import { TaskService } from "../tasks/service";
 import { agentCtx, createFixture, userCtx, type Fixture } from "../testing/fixtures";
 import { canAssignAgent, canOwnProject, canTaskJoinProject } from "./rules";
+import { agentKnowledgeContext } from "./knowledge-access";
 import { getSectorReport, listSectorSummaries } from "./sector-report";
 import { archiveBusiness, createAgent, createBusiness, createProject, provisionInitialStructure, restoreBusiness } from "./structure";
 
@@ -209,4 +210,16 @@ test("sector reporting respects business-level access", async () => {
   assert.deepEqual(list.map((s) => s.slug), ["nightlife-entertainment"]);
   assert.equal((await listSectorSummaries(tdb.db, userCtx(f.orgId))).length >= 6, true);
   void executionRuns;
+});
+
+test("knowledge access: sector agents read their sector's businesses, business agents only their own", async () => {
+  const manager = await agentKnowledgeContext(tdb.db, ids["agent:nightlife-entertainment-manager"]!);
+  assert.deepEqual([...(manager.businesses as string[])].sort(), ["305-events", "713-society", "party-street", "xyz-partys"]);
+  assert.equal(manager.hq, false);
+  assert.equal(manager.write, false);
+  const lead = await createAgent(tdb.db, userCtx(f.orgId), { name: "Party Street Lead", role: "business-lead", businessId: ids["party-street"] });
+  const leadCtx = await agentKnowledgeContext(tdb.db, lead.id);
+  assert.deepEqual(leadCtx.businesses, ["party-street"], "a business agent never reads a sibling business");
+  const chief = await agentKnowledgeContext(tdb.db, f.agents.chief);
+  assert.deepEqual([chief.hq, chief.businesses], [true, []]);
 });

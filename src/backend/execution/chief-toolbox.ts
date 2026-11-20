@@ -4,7 +4,7 @@ import type { ChiefToolbox as ChiefToolboxContract } from "@/agents/chief/agent"
 import { MAX_WORK_REQUESTS, READ_TOOLS, REQUEST_TOOL, TASK_STATES_FOR_TOOLS } from "@/agents/chief/tools";
 import type { TaskState } from "@/domain/task-lifecycle";
 import type { Db } from "@/infrastructure/db/client";
-import { agentTaskContexts, agents, budgets, businesses, projects } from "@/infrastructure/db/schema";
+import { agentTaskContexts, agents, budgets, businesses, projects, sectors } from "@/infrastructure/db/schema";
 import type { RequestContext } from "../auth/context";
 import { monthStart } from "../budgets/spend-guard";
 import { ServiceError, UUID } from "../errors";
@@ -82,8 +82,9 @@ export class ChiefToolbox implements ChiefToolboxContract {
     switch (name) {
       case "list_businesses": {
         const rows = await this.db
-          .select({ id: businesses.id, slug: businesses.slug, name: businesses.name, status: businesses.status })
+          .select({ id: businesses.id, slug: businesses.slug, name: businesses.name, status: businesses.status, sector: sectors.name })
           .from(businesses)
+          .leftJoin(sectors, eq(sectors.id, businesses.sectorId))
           .where(eq(businesses.organizationId, org));
         return ok(rows, `${rows.length} businesses`);
       }

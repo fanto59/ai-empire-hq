@@ -51,6 +51,10 @@ external is connected.
     budgets or permissions, sign or execute contracts, or decide approval
     requests. Never add such a tool to an agent; route those items to the
     owner (see docs/CHIEF_AI_MANAGER.md).
+12. **Businesses stay distinct.** Business agents work on and read only their
+    own business; sector agents only their sector's businesses; HQ oversees.
+    All assignment/project/access decisions go through `src/backend/org/rules.ts`.
+    New agents and businesses never start paid work on their own.
 
 ## Stack
 
@@ -77,7 +81,8 @@ npm run db:setup     # migrate + seed TEST data (embedded DB) — run before dev
 npm run db:migrate   # apply migrations (explicit step for real PostgreSQL)
 npm run db:generate  # create a migration after editing the schema
 npm run db:token     # print a test API token once (also used to sign in)
-npm run budget:set   # set this month's API budget (test org; default $0)
+npm run budget:set   # set this month's API budget (org, --sector or --business; default $0)
+npm run org:provision   # add the initial sectors/businesses/managers to an existing DB (idempotent)
 npm run worker       # standalone Research Agent worker (real PostgreSQL)
 npm run test:e2e     # LIVE research test (E2E_MODEL, default claude-opus-5-5; needs its key)
 npm run test:providers  # LIVE low-cost test per provider with a key set (< $0.01 each)
@@ -134,6 +139,10 @@ Import rules:
   and prices (src/agents/providers/catalog.ts) current; a model is assignable
   only when the provider's live model list confirms it.
 - Model assignments change only via `setAgentModel` (models:admin, audited).
+- Sectors/businesses/sector agents/projects change only via
+  `src/backend/org/structure.ts` (businesses:admin, audited). Offices for
+  sectors are generated from records (`buildSectorFloor`); never hard-code rooms
+  or employees.
 - Renderers draw scene/floor data only; they never fetch or hold business logic.
 - Keep simulation, pathfinding and floor data pure (no PixiJS/React) and tested.
 - Feature flags default to disabled; only the exact string `"true"` enables.
@@ -148,6 +157,7 @@ Import rules:
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
+- `docs/SECTORS.md` - sectors, distinct businesses, access levels, cross-sector project rules, sector offices
 - `docs/LIVE_OFFICE.md` - real-time office: event stream, state machine, refresh/replay/failure handling
 - `docs/MODEL_PROVIDERS.md` - Claude / OpenAI / Grok: interface, keys, safety, model config, evaluation
 - `docs/RESEARCH_AGENT.md` - the Research Agent: flow, limits, credentials

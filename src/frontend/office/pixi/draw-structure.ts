@@ -18,7 +18,7 @@ export interface StructureLayer {
 }
 
 /** `displayLabel`: text on the conference wall display (says whether the floor is live or simulated). */
-export function buildStructure(plan: FloorPlan, opts: { displayLabel?: string } = {}): StructureLayer {
+export function buildStructure(plan: FloorPlan, opts: { displayLabel?: string; elevatorLabel?: string } = {}): StructureLayer {
   const container = new Container({ label: "structure" });
   const g = new Graphics();
   container.addChild(g);
@@ -29,7 +29,7 @@ export function buildStructure(plan: FloorPlan, opts: { displayLabel?: string } 
 
   let elevator = new Graphics();
   for (const feature of plan.wallFeatures) {
-    if (feature.kind === "elevator") elevator = drawElevator(container, feature);
+    if (feature.kind === "elevator") elevator = drawElevator(container, feature, opts.elevatorLabel ?? "SECTORS");
     else drawWallFeature(g, container, feature, opts.displayLabel ?? "PROTOTYPE · SIMULATION");
   }
 
@@ -169,7 +169,7 @@ function drawWallFeature(g: Graphics, container: Container, f: WallFeature, disp
   }
 }
 
-function drawElevator(container: Container, f: WallFeature): Graphics {
+function drawElevator(container: Container, f: WallFeature, signText: string): Graphics {
   const { wall, from, to } = f;
   const g = new Graphics({ label: "sector-elevator" });
   g.poly(wallQuad(wall, from + 0.15, to - 0.15, 0, 96)).fill(PALETTE.metal);
@@ -188,7 +188,7 @@ function drawElevator(container: Container, f: WallFeature): Graphics {
   container.addChild(g);
 
   const label = new Text({
-    text: "SECTORS",
+    text: signText,
     style: { fontFamily: UI_FONT, fontSize: 8, fontWeight: "700", fill: PALETTE.accent, letterSpacing: 1 },
     resolution: 3,
   });

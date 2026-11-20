@@ -37,7 +37,7 @@ export const TASK_STATES_FOR_TOOLS = ["queued", "assigned", "running", "waiting"
 export const CHIEF_TOOLS: ToolSpec[] = [
   {
     name: "list_businesses",
-    description: "List every business sector in the organization with its status. Read-only.",
+    description: "List every business in the organization with its sector and status (planning, active, paused, archived). Read-only.",
     inputSchema: obj({}),
   },
   {

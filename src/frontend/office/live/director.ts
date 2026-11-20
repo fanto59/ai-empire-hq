@@ -4,6 +4,7 @@ import type { FloorPlan, Waypoint } from "../floor/types";
 import { buildNavGrid, type NavGrid } from "../navigation/grid";
 import { facingForStep, findPath } from "../navigation/pathfinding";
 import type { CharacterRuntime, CharacterState, PrototypeCharacter } from "../sim/types";
+import { characterFor } from "./looks";
 import { applyHealth, characterStateFor, initialAgentState, placeFor, reduceEvent, type AgentLiveState, type ReduceOutcome } from "./machine";
 
 /**
@@ -21,8 +22,6 @@ import { applyHealth, characterStateFor, initialAgentState, placeFor, reduceEven
 export type ConnectionStatus = "connecting" | "live" | "reconnecting" | "unauthorized" | "offline";
 
 export interface FloorSlot {
-  /** Prototype look reused for the agent (appearance only). */
-  look: PrototypeCharacter;
   rest: string;
   desk: string;
 }
@@ -34,8 +33,8 @@ export const LIVE_SLOTS: Record<"chief" | "pm" | "research", { lookId: string; r
   research: { lookId: "sim-research", rest: "research.side", desk: "research.desk" },
 };
 
-/** Workstation by task kind (falls back to the agent's own desk). */
-const STATION_BY_KIND: Record<string, string> = { research: "research.desk", executive: "chief.desk" };
+/** Executive Floor workstations by task kind (falls back to the agent's own desk). */
+export const EXECUTIVE_STATIONS: Record<string, string> = { research: "research.desk", executive: "chief.desk" };
 
 export function slotFor(agent: LiveAgentInfo): keyof typeof LIVE_SLOTS | null {
   if (agent.role === "chief-ai-manager") return "chief";
@@ -66,10 +65,41 @@ interface Rec {
   view: LiveCharacterView;
 }
 
+/** Where each agent goes on this floor: a slot, "overflow" (belongs here, no free desk), or absent (not on this floor). */
+export type SlotAssignment = Map<string, { character: PrototypeCharacter; rest: string; desk: string } | "overflow">;
+
 export interface LiveDirectorOptions {
   plan: FloorPlan;
   looks: readonly PrototypeCharacter[];
   walkTilesPerSecond?: number;
+  /** Seats agents on this floor. Default: the Executive Floor's headquarters seating. */
+  assignSlots?: (agents: readonly LiveAgentInfo[]) => SlotAssignment;
+  /** Task kind → workstation waypoint (Executive Floor: research desk, Chief's desk). */
+  stationByKind?: Record<string, string>;
+}
+
+/**
+ * Executive Floor seating: the Chief, the Central PM and the first research
+ * agent get their offices; other headquarters agents are "not on this
+ * floor"; sector and business agents belong to their sector floors.
+ */
+export function executiveSlots(looks: readonly PrototypeCharacter[]) {
+  return (agents: readonly LiveAgentInfo[]): SlotAssignment => {
+    const out: SlotAssignment = new Map();
+    const used = new Set<string>();
+    for (const agent of agents) {
+      const key = slotFor(agent);
+      const spec = key && !used.has(key) ? LIVE_SLOTS[key] : null;
+      const look = spec ? looks.find((l) => l.id === spec.lookId) : undefined;
+      if (spec && look) {
+        used.add(key!);
+        out.set(agent.id, { character: characterFor(agent, spec.rest, look), rest: spec.rest, desk: spec.desk });
+      } else if (agent.businessId === null && !agent.sectorId) {
+        out.set(agent.id, "overflow");
+      }
+    }
+    return out;
+  };
 }
 
 const MAX_TICK_MS = 250;
@@ -77,7 +107,8 @@ const MAX_TICK_MS = 250;
 export class LiveDirector {
   private readonly grid: NavGrid;
   private readonly waypoints: Map<string, Waypoint>;
-  private readonly looks: readonly PrototypeCharacter[];
+  private readonly assignSlots: (agents: readonly LiveAgentInfo[]) => SlotAssignment;
+  private readonly stationByKind: Record<string, string>;
   private readonly walkSpeed: number;
   private readonly records = new Map<string, Rec>();
   private runtimeList: CharacterRuntime[] = [];
@@ -94,7 +125,8 @@ export class LiveDirector {
   constructor(options: LiveDirectorOptions) {
     this.grid = buildNavGrid(options.plan);
     this.waypoints = new Map(options.plan.waypoints.map((w) => [w.id, w]));
-    this.looks = options.looks;
+    this.assignSlots = options.assignSlots ?? executiveSlots(options.looks);
+    this.stationByKind = options.stationByKind ?? (options.assignSlots ? {} : EXECUTIVE_STATIONS);
     this.walkSpeed = options.walkTilesPerSecond ?? 2.4;
   }
 
@@ -107,17 +139,15 @@ export class LiveDirector {
     this.offFloor = [];
     this.tasks = new Map(snap.tasks.map((t) => [t.id, t]));
     this.runs = new Map(snap.runs.map((r) => [r.runId, r]));
-    const used = new Set<string>();
+    const slots = this.assignSlots(snap.agents);
     for (const agent of snap.agents) {
-      const key = slotFor(agent);
-      const spec = key ? LIVE_SLOTS[key] : null;
-      const look = spec ? this.looks.find((l) => l.id === spec.lookId) : undefined;
-      if (!spec || !look || used.has(key!)) {
+      const slot = slots.get(agent.id);
+      if (!slot) continue; // works on another floor
+      if (slot === "overflow") {
         this.offFloor.push(agent);
         continue;
       }
-      used.add(key!);
-      const rest = this.wp(spec.rest);
+      const rest = this.wp(slot.rest);
       const runtime: CharacterRuntime = {
         id: agent.id,
         col: rest.tile.col,
@@ -129,8 +159,8 @@ export class LiveDirector {
         depth: rest.tile.col + rest.tile.row + 1,
         target: null,
       };
-      const character: PrototypeCharacter = { ...look, id: agent.id, codename: agent.name, role: agent.role, plannedModel: `${agent.provider} · ${agent.model}`, agentSlug: agent.slug };
-      const rec: Rec = { agent, character, slot: { look, rest: spec.rest, desk: spec.desk }, live: initialAgentState(agent.id), runtime, path: [], destination: null, at: rest, view: undefined as unknown as LiveCharacterView };
+      const character = slot.character;
+      const rec: Rec = { agent, character, slot: { rest: slot.rest, desk: slot.desk }, live: initialAgentState(agent.id), runtime, path: [], destination: null, at: rest, view: undefined as unknown as LiveCharacterView };
       this.records.set(agent.id, rec);
       this.runtimeList.push(runtime);
     }
@@ -263,7 +293,7 @@ export class LiveDirector {
   private targetFor(rec: Rec): Waypoint {
     if (placeFor(rec.live.phase) === "rest") return this.wp(rec.slot.rest);
     const kind = rec.live.taskId ? this.tasks.get(rec.live.taskId)?.kind : undefined;
-    const byKind = kind ? STATION_BY_KIND[kind] : undefined;
+    const byKind = kind ? this.stationByKind[kind] : undefined;
     // Use the kind's station only when it is this agent's own desk type (no two agents share a desk).
     return this.wp(byKind && byKind === rec.slot.desk ? byKind : rec.slot.desk);
   }

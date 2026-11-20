@@ -13,7 +13,9 @@ export function LiveOverviewPanel({
   offFloor,
   connection,
   onSelect,
+  title = "Executive Floor · live",
 }: {
+  title?: string;
   views: LiveCharacterView[];
   offFloor: readonly LiveAgentInfo[];
   connection: ConnectionStatus;
@@ -24,7 +26,7 @@ export function LiveOverviewPanel({
       <header className="border-b border-slate-800 p-4">
         <div className="flex items-center gap-2">
           <h2 id="live-overview-title" className="text-base font-semibold text-white">
-            Executive Floor · live
+            {title}
           </h2>
           <LiveBadge connection={connection} />
         </div>

@@ -209,3 +209,25 @@ export async function getSectorReport(db: Db, ctx: RequestContext, slug: string,
     sectorBudget: sb ? { limitMicros: sb.limitMicros, spentMicros: sb.spentMicros } : null,
   };
 }
+
+/** Records for a sector's office floor: its non-archived businesses (rooms) and its agents (employees). */
+export async function loadSectorFloorInput(db: Db, organizationId: string, slug: string) {
+  const [sector] = await db.select().from(sectors).where(and(eq(sectors.organizationId, organizationId), eq(sectors.slug, slug)));
+  if (!sector) return null;
+  const bizRows = await db
+    .select({ id: businesses.id, slug: businesses.slug, name: businesses.name, status: businesses.status })
+    .from(businesses)
+    .where(eq(businesses.sectorId, sector.id))
+    .orderBy(asc(businesses.name));
+  const live = bizRows.filter((b) => b.status !== "archived").map((b) => ({ id: b.id, slug: b.slug, name: b.name }));
+  const ids = live.map((b) => b.id);
+  const agentRows = await db
+    .select({ id: agents.id, businessId: agents.businessId, sectorId: agents.sectorId, role: agents.role })
+    .from(agents)
+    .where(and(eq(agents.organizationId, organizationId), inArray(agents.status, ["active", "draft"])));
+  return {
+    sector: { slug: sector.slug, name: sector.name },
+    businesses: live,
+    agents: agentRows.filter((a) => a.sectorId === sector.id || (a.businessId !== null && ids.includes(a.businessId))),
+  };
+}

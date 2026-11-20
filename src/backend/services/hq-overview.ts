@@ -4,6 +4,7 @@ import { getKnowledgeService, getKnowledgeSync, ownerContext } from "@/backend/k
 import type { TaskSummaryView } from "@/domain/task-view";
 import { ownerRequestContext } from "../auth/context";
 import { getDashboardOrganization, getDatabase } from "../db";
+import { listSectorSummaries, type SectorSummary } from "../org/sector-report";
 import { loadTaskSummaries } from "../tasks/views";
 import { getUsageReport } from "../usage/report";
 import { loadRuntimeConfig, type ProviderId } from "@/infrastructure/config/env";
@@ -18,6 +19,8 @@ export interface HqOverview {
   agentExecutionEnabled: boolean;
   providers: { id: ProviderId; enabled: boolean }[];
   businesses: Business[];
+  /** Real sectors with their business counts (null when the database is not set up). */
+  sectors: SectorSummary[] | null;
   hqAgents: AgentProfile[];
   /** API spending (null when the database is not set up). */
   spending: { todayMicros: number; monthMicros: number; projectedMonthMicros: number; callsToday: number; budget: { limitMicros: number; spentMicros: number } | null } | null;
@@ -33,6 +36,7 @@ export async function getHqOverview(): Promise<HqOverview> {
   const org = db ? await getDashboardOrganization(db) : null;
   const taskItems = db && org ? await loadTaskSummaries(db, ownerRequestContext(org.id)) : null;
   const usage = db && org ? await getUsageReport(db, org.id) : null;
+  const sectorList = db && org ? await listSectorSummaries(db, ownerRequestContext(org.id)) : null;
   const [businesses, hqAgents, notes, sync] = await Promise.all([
     repos.businesses.list(),
     repos.agents.listHqLevel(),
@@ -48,6 +52,7 @@ export async function getHqOverview(): Promise<HqOverview> {
       enabled: config.agentExecutionEnabled && config.providers[id].enabled && config.providerKeys[id],
     })),
     businesses,
+    sectors: sectorList,
     hqAgents,
     spending: usage
       ? {

@@ -87,7 +87,7 @@ test("machine: failure and worker loss come from events or run health, never fro
   assert.equal(paused.phase, "paused");
 });
 
-const agentInfo = (id: string, role: string, workType: string) => ({ id, slug: id, name: `Test ${id}`, role, businessId: null, workType, provider: "xai", model: "grok-4.7" });
+const agentInfo = (id: string, role: string, workType: string) => ({ id, slug: id, name: `Test ${id}`, role, businessId: null, sectorId: null, workType, provider: "xai", model: "grok-4.7" });
 const snapshot = (events: LiveEvent[] = [], extra: Partial<LiveSnapshot> = {}): LiveSnapshot => ({
   cursor: events.at(-1)?.streamId ?? 0,
   serverTime: "2026-11-19T10:00:00.000Z",

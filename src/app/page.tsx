@@ -163,19 +163,29 @@ export default async function HeadquartersPage() {
             </Link>
           </Panel>
 
-          <Panel title="Business sectors">
-            {overview.businesses.length === 0 ? (
+          <Panel title="Business sectors" subtitle="Each sector has its own office, manager, businesses, projects and budget.">
+            {!overview.sectors || overview.sectors.length === 0 ? (
               <EmptyState title="No business sectors yet">
-                Each business will get its own isolated wing, agents, projects and knowledge.
+                Run npm run org:provision to create the initial sectors.
               </EmptyState>
             ) : (
-              <ul className="space-y-2">
-                {overview.businesses.map((b) => (
-                  <li key={b.id} className="text-slate-200">
-                    {b.name}
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {overview.sectors.map((s) => (
+                    <li key={s.id}>
+                      <Link href={`/sectors/${s.slug}`} className="block rounded-lg bg-slate-950/60 p-3 ring-1 ring-slate-800 transition hover:ring-sky-400/40">
+                        <span className="block font-medium text-slate-100">{s.name}</span>
+                        <span className="block text-xs text-slate-400 tabular-nums">
+                          {s.businessCount - s.archivedBusinesses} business{s.businessCount - s.archivedBusinesses === 1 ? "" : "es"} · {s.agentCount} agent{s.agentCount === 1 ? "" : "s"} · {s.openTasks} open task{s.openTasks === 1 ? "" : "s"}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/sectors" className="mt-3 inline-block text-sm text-sky-300 hover:text-sky-200">
+                  All sectors and their offices →
+                </Link>
+              </>
             )}
           </Panel>
         </div>
