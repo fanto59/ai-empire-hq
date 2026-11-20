@@ -10,11 +10,12 @@ export async function startInProcessWorker() {
     console.warn(`[workers] not started: no model provider is ready (${getProvider("anthropic").status().reason})`);
     return;
   }
-  const [{ getDatabase }, { getKnowledgeService }, { ResearchWorker, startResearchWorkerLoop }, { ChiefWorker }] = await Promise.all([
+  const [{ getDatabase }, { getKnowledgeService }, { ResearchWorker, startResearchWorkerLoop }, { ChiefWorker }, { BusinessWorker }] = await Promise.all([
     import("@/backend/db"),
     import("@/backend/knowledge"),
     import("@/backend/execution/research-worker"),
     import("@/backend/execution/chief-worker"),
+    import("@/backend/execution/business-worker"),
   ]);
   const db = await getDatabase();
   if (!db) {
@@ -26,9 +27,11 @@ export async function startInProcessWorker() {
   const shared = { db, knowledge: getKnowledgeService(), providers: getProvider, config: config.research };
   const stopResearch = startResearchWorkerLoop(new ResearchWorker({ ...shared, workerId: `web-research-${process.pid}` }));
   const stopChief = startResearchWorkerLoop(new ChiefWorker({ ...shared, workerId: `web-chief-${process.pid}` }));
+  const stopBusiness = startResearchWorkerLoop(new BusinessWorker({ ...shared, workerId: `web-business-${process.pid}` }));
   g.__aehqWorkerStop = () => {
     stopResearch();
     stopChief();
+    stopBusiness();
   };
-  console.log(`[workers] Research Agent and Chief AI Manager running in-process (providers ready: ${ready.join(", ")}).`);
+  console.log(`[workers] Research Agent, Chief AI Manager and business agents running in-process (providers ready: ${ready.join(", ")}).`);
 }

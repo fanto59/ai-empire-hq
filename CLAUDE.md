@@ -12,10 +12,11 @@ employees (PixiJS), Obsidian knowledge, and Claude / OpenAI / Grok model
 providers.
 
 **Current phase: first real agents, multi-model.** The Research Agent
-(read-only web research) and the Chief AI Manager (reads organization records,
-proposes plans) run on Claude, OpenAI or Grok (all three owner-approved), one
-model per agent, chosen on /models; all data is test data and nothing else
-external is connected.
+(read-only web research), the Chief AI Manager (reads organization records,
+proposes plans) and sector managers / business leads / specialists (work on
+owner assignments, write DRAFT deliverables) run on Claude, OpenAI or Grok
+(all three owner-approved), one model per agent, chosen on /models; all data
+is test data and nothing else external is connected.
 
 ## Hard rules (never break these)
 
@@ -90,6 +91,7 @@ npm run db:generate  # create a migration after editing the schema
 npm run db:token     # print a test API token once (also used to sign in)
 npm run budget:set   # set this month's API budget (org, --sector or --business; default $0)
 npm run org:provision   # add the initial sectors/businesses/managers to an existing DB (idempotent)
+npm run business:starter -- --business xyz-partys  # starter team + blank profile (idempotent, no tasks)
 npm run worker       # standalone Research Agent worker (real PostgreSQL)
 npm run test:e2e     # LIVE research test (E2E_MODEL, default claude-opus-5-5; needs its key)
 npm run test:providers  # LIVE low-cost test per provider with a key set (< $0.01 each)
@@ -145,6 +147,12 @@ Import rules:
   use the official `openai` SDK (Responses API, `store: false`). Keep model IDs
   and prices (src/agents/providers/catalog.ts) current; a model is assignable
   only when the provider's live model list confirms it.
+- Business agents run only `business` tasks a person assigned
+  (src/backend/execution/business-worker.ts); their tools are in
+  src/agents/business/tools.ts and the scope is enforced by business-toolbox.ts.
+  They write drafts only, and propose (never perform) outside actions.
+  Starter kits (src/domain/business-starter.ts) contain no business facts:
+  the owner writes the profile; agents ask instead of guessing.
 - Model assignments change only via `setAgentModel` (models:admin, audited).
 - Sectors/businesses/sector agents/projects change only via
   `src/backend/org/structure.ts` (businesses:admin, audited). Offices for
@@ -170,4 +178,5 @@ Import rules:
 - `docs/MODEL_PROVIDERS.md` - Claude / OpenAI / Grok: interface, keys, safety, model config, evaluation
 - `docs/RESEARCH_AGENT.md` - the Research Agent: flow, limits, credentials
 - `docs/CHIEF_AI_MANAGER.md` - the Chief AI Manager agent: tools, boundaries, persistent context
+- `docs/BUSINESS_AGENTS.md` - sector managers and business agents: assignments, tools, scope, starter kit
 - `docs/DEPLOYMENT.md` - cloud-readiness notes (no deployment yet)

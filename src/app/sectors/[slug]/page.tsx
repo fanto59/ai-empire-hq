@@ -99,7 +99,9 @@ export default async function SectorPage({ params }: { params: Promise<{ slug: s
               {[...live, ...archived].map((b) => (
                 <li key={b.id} className={`py-3 ${b.status === "archived" ? "opacity-70" : ""}`}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-slate-100">{b.name}</span>
+                    <Link href={`/businesses/${b.slug}`} className="font-medium text-slate-100 underline-offset-2 hover:text-white hover:underline">
+                      {b.name}
+                    </Link>
                     <span className={`rounded px-1.5 py-0.5 text-[11px] ring-1 ${STATUS_CHIP[b.status]}`}>{BUSINESS_STATUS_LABELS[b.status as BusinessStatus] ?? b.status}</span>
                   </div>
                   {b.description && <p className="mt-0.5 text-xs text-slate-400">{b.description}</p>}

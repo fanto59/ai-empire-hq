@@ -13,11 +13,15 @@ import { TaskService } from "./service";
  * What happens depends on what the agent can actually do:
  * - Chief AI Manager (org.read)          → executive objective; the Chief worker plans it.
  * - Agent with research.web_search        → research task; the Research worker runs it.
- * - Any other agent (needs task.execute)  → a tracked task assigned to it. No
- *   worker executes these agents yet, so the UI labels them "tracked only".
+ * - Sector manager / business lead / specialist with task.execute
+ *                                         → business work; the Business worker runs it on
+ *                                           the agent's one assigned model, within budget.
+ * - Any other agent (needs task.execute)  → a tracked task assigned to it, not run.
  * Only signed-in people (user principals with tasks:write) can assign work.
  */
-export type AgentCapability = "plans-objectives" | "runs-research" | "tracked-only";
+export type AgentCapability = "plans-objectives" | "runs-research" | "runs-work" | "tracked-only";
+
+const WORK_ROLES: readonly string[] = ["sector-manager", "business-lead", "specialist"];
 
 export interface AssignableAgent {
   id: string;
@@ -64,7 +68,13 @@ export async function listAssignableAgents(db: Db, organizationId: string): Prom
     .map((r) => {
       const mine = new Set(perms.filter((p) => p.agentId === r.id).map((p) => p.p));
       const capability: AgentCapability =
-        r.role === "chief-ai-manager" && mine.has("org.read") ? "plans-objectives" : mine.has("research.web_search") ? "runs-research" : "tracked-only";
+        r.role === "chief-ai-manager" && mine.has("org.read")
+          ? "plans-objectives"
+          : mine.has("research.web_search")
+            ? "runs-research"
+            : WORK_ROLES.includes(r.role) && mine.has("task.execute")
+              ? "runs-work"
+              : "tracked-only";
       const sectorBusinesses = r.sectorId
         ? orgBusinesses.filter((b) => b.sectorId === r.sectorId && b.status !== "archived").map((b) => ({ id: b.id, name: b.name })).sort((a, b) => a.name.localeCompare(b.name))
         : [];
@@ -110,12 +120,16 @@ export async function assignWork(db: Db, ctx: RequestContext, input: AssignmentI
   }
   const svc = new TaskService(db);
   const title = (input.title?.trim() || instructions.replace(/\s+/g, " ").slice(0, 120)).slice(0, 200);
-  const { task, created } = await svc.createTask(ctx, { title, description: instructions, businessId, kind: "general" }, idempotencyKey);
+  const kind = agent.capability === "runs-work" && businessId ? "business" : "general";
+  const { task, created } = await svc.createTask(ctx, { title, description: instructions, businessId, kind }, idempotencyKey);
   if (!created) return { task, agent, note: "Already submitted." };
   const assigned = await svc.transition(ctx, task.id, { action: "assign", agentId: agent.id, reason: "Owner assignment" });
   return {
     task: assigned,
     agent,
-    note: `Assigned to ${agent.displayName}. This agent is not connected to a model yet, so the task is tracked but not run automatically.`,
+    note:
+      kind === "business"
+        ? `Assigned to ${agent.displayName}. It runs when the agent worker is on, on the agent's assigned model, and only within the business's budget.`
+        : `Assigned to ${agent.displayName}. This agent is not connected to a model, so the task is tracked but not run automatically.`,
   };
 }

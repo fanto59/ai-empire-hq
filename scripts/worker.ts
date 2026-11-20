@@ -1,5 +1,5 @@
 /**
- * Standalone agent worker (Research Agent + Chief AI Manager), for use with a
+ * Standalone agent worker (Research Agent, Chief AI Manager, sector & business agents), for use with a
  * real PostgreSQL server. With the embedded database (PGlite) only one
  * process may open it, so run the worker inside the web server instead
  * (AGENT_WORKER=in-process).
@@ -13,6 +13,7 @@ import { hostname } from "node:os";
 import { getProvider, PROVIDER_IDS } from "@/agents/providers/registry";
 import { ResearchWorker, startResearchWorkerLoop } from "@/backend/execution/research-worker";
 import { ChiefWorker } from "@/backend/execution/chief-worker";
+import { BusinessWorker } from "@/backend/execution/business-worker";
 import { getKnowledgeService } from "@/backend/knowledge";
 import { loadRuntimeConfig } from "@/infrastructure/config/env";
 import { migrateDatabase, openDatabase } from "@/infrastructure/db/client";
@@ -32,6 +33,7 @@ const shared = { db: handle.db, knowledge: getKnowledgeService(), providers: get
 const stops = [
   startResearchWorkerLoop(new ResearchWorker({ ...shared, workerId: `research-${id}` })),
   startResearchWorkerLoop(new ChiefWorker({ ...shared, workerId: `chief-${id}` })),
+  startResearchWorkerLoop(new BusinessWorker({ ...shared, workerId: `business-${id}` })),
 ];
 const stop = () => stops.forEach((s) => s());
 console.log(`Agent workers running (providers ready: ${ready.join(", ")}). Press Ctrl+C to stop.`);

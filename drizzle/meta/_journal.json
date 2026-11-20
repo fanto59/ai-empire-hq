@@ -50,6 +50,13 @@
       "when": 1795133144404,
       "tag": "0006_control_center",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795186850744,
+      "tag": "0007_business_agents",
+      "breakpoints": true
     }
   ]
 }

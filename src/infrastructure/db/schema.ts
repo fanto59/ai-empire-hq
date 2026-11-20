@@ -56,7 +56,7 @@ export const agentPermission = pgEnum("agent_permission", [
 ]);
 export const projectStatus = pgEnum("project_status", ["proposed", "active", "on-hold", "done", "canceled"]);
 /** What kind of work a task is; workers only execute kinds they support. */
-export const taskKind = pgEnum("task_kind", ["general", "research", "executive"]);
+export const taskKind = pgEnum("task_kind", ["general", "research", "executive", "business"]);
 export const taskState = pgEnum("task_state", ["queued", "assigned", "running", "waiting", "paused", "completed", "failed", "canceled"]);
 export const runStatus = pgEnum("run_status", ["queued", "running", "suspended", "succeeded", "failed", "timed_out", "canceled"]);
 export const approvalStatus = pgEnum("approval_status", ["pending", "approved", "rejected", "expired"]);
