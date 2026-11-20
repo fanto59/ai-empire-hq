@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/", label: "Headquarters" },
   { href: "/office", label: "Executive Floor" },
   { href: "/tasks", label: "Tasks" },
+  { href: "/control", label: "Control" },
   { href: "/agents", label: "Agents" },
   { href: "/models", label: "Models" },
   { href: "/usage", label: "Usage" },

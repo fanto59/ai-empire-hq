@@ -55,6 +55,13 @@ external is connected.
     own business; sector agents only their sector's businesses; HQ oversees.
     All assignment/project/access decisions go through `src/backend/org/rules.ts`.
     New agents and businesses never start paid work on their own.
+13. **Control center rules.** Financial transfers, binding commitments,
+    external messages, public publishing and production deployments may only
+    ever run through `executeProposal` (src/backend/control/proposals.ts):
+    an approved, unexpired, single-use token for the exact payload. No such
+    integration exists today. Control actions are people-only, server-checked,
+    audited and idempotent; risk-increasing ones (lift suspension, raise a
+    budget) need approval tokens.
 
 ## Stack
 
@@ -157,6 +164,7 @@ Import rules:
 - `docs/AGENT_EVENTS.md` - real agent execution event contract
 - `docs/KNOWLEDGE.md` - knowledge vault, access rules, Obsidian sync design
 - `docs/OPERATIONS.md` - database, task state machine, task API, durable execution
+- `docs/CONTROL_CENTER.md` - control center: authorization, approval tokens, emergency suspension, budgets
 - `docs/SECTORS.md` - sectors, distinct businesses, access levels, cross-sector project rules, sector offices
 - `docs/LIVE_OFFICE.md` - real-time office: event stream, state machine, refresh/replay/failure handling
 - `docs/MODEL_PROVIDERS.md` - Claude / OpenAI / Grok: interface, keys, safety, model config, evaluation

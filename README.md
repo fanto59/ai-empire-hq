@@ -25,10 +25,12 @@ Pages:
   click away. Click a character to inspect it; drag to pan; scroll to zoom.
 - `/tasks` – Tasks from the operational database (test data)
 - `/agents` – Agents, their open work and spend; give any agent an assignment
+- `/control` – Executive control center: emergency suspension, approvals (tokens tied to exact actions), agents, budgets, history, errors
 - `/sectors` – Business sectors: reports, distinct businesses (add/archive), sector offices
 - `/models` – Choose the provider/model per agent; provider status, live availability, results on real tasks
 - `/usage` – Model API usage and spending: today, per day, by agent/model/business, budgets
 - `/knowledge` – Knowledge vault (Markdown/Obsidian notes, sample content)
+- `/control` – Executive control center: emergency suspension, approvals (tokens tied to exact actions), agents, budgets, history, errors
 - `/sectors` – Sector overview placeholder
 
 ### Previewing in Claude Code on the web
@@ -62,6 +64,7 @@ Optional: disable Next.js anonymous telemetry on your machine with
 | [docs/SECURITY.md](docs/SECURITY.md) | Security rules |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Multi-business data model |
 | [docs/VIRTUAL_OFFICE.md](docs/VIRTUAL_OFFICE.md) | Isometric office rendering plan |
+| [docs/CONTROL_CENTER.md](docs/CONTROL_CENTER.md) | Control center, approval tokens, emergency suspension, budgets |
 | [docs/SECTORS.md](docs/SECTORS.md) | Sectors, businesses, access levels, cross-sector rules, sector offices |
 | [docs/LIVE_OFFICE.md](docs/LIVE_OFFICE.md) | Live office: event stream, animation state machine, replay and failures |
 | [docs/AGENT_EVENTS.md](docs/AGENT_EVENTS.md) | Agent execution event contract |

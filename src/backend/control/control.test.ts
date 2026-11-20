@@ -74,7 +74,8 @@ test("unauthorized: agents, tokens without the permission, and limited tokens ar
 // ---- approval tokens tied to the exact action ------------------------------------------------------
 
 test("approval tokens: bound to the exact payload, single use; raising a budget needs one", async () => {
-  const proposal = await setBudgetLimit(tdb.db, owner(), { scope: { kind: "organization" }, usd: 5 }, T0);
+  // The form sends an empty id for the organization scope; it must still become an exact, valid payload.
+  const proposal = await setBudgetLimit(tdb.db, owner(), { scope: { kind: "organization", id: undefined }, usd: 5 }, T0);
   assert.equal(proposal.accepted, true);
   assert.equal(proposal.code, "needs-approval");
   assert.equal((await tdb.db.select().from(budgets).where(eq(budgets.organizationId, f.orgId))).length, 0, "nothing changed yet");

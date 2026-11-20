@@ -169,6 +169,9 @@ export async function decideTaskApproval(db: Db, ctx: RequestContext, approvalId
 export async function setBudgetLimit(db: Db, ctx: RequestContext, input: { scope: unknown; usd: unknown }, now = new Date()): Promise<ControlResult> {
   assertPerson(ctx, "budgets:admin");
   const scope = budgetScopeFromPayload(input.scope);
+  // Normalized scope, exactly as it will be bound into an approval.
+  const raw = (input.scope ?? {}) as { kind?: string; id?: string };
+  const scopePayload = scope === "organization" ? { kind: "organization" } : { kind: raw.kind!, id: raw.id! };
   const usd = Number(input.usd);
   if (!Number.isFinite(usd) || usd < 0 || usd > 1000) throw new ServiceError("invalid-input", "Enter an amount from $0 to $1,000.");
   const toMicros = Math.round(usd * 1_000_000);
@@ -177,7 +180,7 @@ export async function setBudgetLimit(db: Db, ctx: RequestContext, input: { scope
   const fromMicros = row?.limitMicros ?? 0;
   if (row && toMicros === fromMicros) throw new ServiceError("conflict", "That is already the limit.", "duplicate");
   if (toMicros > fromMicros) {
-    const p = await proposeAction(db, ctx, { kind: "budget_increase", summary: `Raise ${scopeLabel(input.scope)} budget from $${(fromMicros / 1e6).toFixed(2)} to $${usd.toFixed(2)} for ${period.slice(0, 7)}`, payload: { scope: input.scope as never, periodStart: period, fromMicros, toMicros } }, now);
+    const p = await proposeAction(db, ctx, { kind: "budget_increase", summary: `Raise ${scopeLabel(input.scope)} budget from $${(fromMicros / 1e6).toFixed(2)} to $${usd.toFixed(2)} for ${period.slice(0, 7)}`, payload: { scope: scopePayload, periodStart: period, fromMicros, toMicros } }, now);
     return accepted(`Not changed yet: raising a budget needs approval. Proposal ${p.id.slice(0, 8)} was created; approve and execute it under Approvals.`, null, now, { code: "needs-approval" });
   }
   return db.transaction(async (tx) => {
