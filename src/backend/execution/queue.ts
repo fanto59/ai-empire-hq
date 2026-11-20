@@ -43,6 +43,27 @@ export interface ClaimedRun {
 }
 
 type TaskKind = (typeof tasks.$inferSelect)["kind"];
+type AgentRole = (typeof agents.$inferSelect)["role"];
+
+/** Which tasks a worker takes: task kinds, and optionally only tasks of agents with these roles and no approval gate. */
+export interface WorkFilter {
+  kinds?: readonly TaskKind[];
+  assigneeRoles?: readonly AgentRole[];
+  /** Skip tasks that require an approval before completion (they stay with people). */
+  excludeApprovalRequired?: boolean;
+}
+
+function workFilterSql(f: WorkFilter, taskId: typeof tasks.id | typeof executionRuns.taskId) {
+  const parts = [];
+  if (f.assigneeRoles) {
+    parts.push(sql`exists (select 1 from ${tasks} ft join ${agents} fa on fa.id = ft.assignee_agent_id where ft.id = ${taskId} and fa.role in (${sql.join(
+      f.assigneeRoles.map((r) => sql`${r}`),
+      sql`, `,
+    )}))`);
+  }
+  if (f.excludeApprovalRequired) parts.push(sql`exists (select 1 from ${tasks} fr where fr.id = ${taskId} and not fr.requires_approval)`);
+  return parts.length ? and(...parts) : undefined;
+}
 
 const SYSTEM: Actor = { kind: "system", id: "execution-queue" };
 
@@ -71,7 +92,7 @@ export class ExecutionQueue {
   }
 
   /** Queues every assigned task that has no active run and whose dependencies are done. */
-  async enqueueReady(options: { organizationId?: string; limit?: number; kinds?: readonly TaskKind[] } = {}): Promise<number> {
+  async enqueueReady(options: { organizationId?: string; limit?: number } & WorkFilter = {}): Promise<number> {
     const candidates = await this.db
       .select({ id: tasks.id })
       .from(tasks)
@@ -80,6 +101,7 @@ export class ExecutionQueue {
           eq(tasks.state, "assigned"),
           options.organizationId ? eq(tasks.organizationId, options.organizationId) : undefined,
           options.kinds ? inArray(tasks.kind, [...options.kinds]) : undefined,
+          workFilterSql(options, tasks.id),
           lt(tasks.attempt, tasks.maxAttempts),
           sql`not exists (select 1 from ${executionRuns} r where r.task_id = ${tasks.id} and r.status in ('queued','running'))`,
           sql`not exists (select 1 from ${taskDependencies} d join ${tasks} dt on dt.id = d.depends_on_task_id where d.task_id = ${tasks.id} and dt.state <> 'completed')`,
@@ -101,7 +123,7 @@ export class ExecutionQueue {
    * Claims the oldest available run. `kinds` restricts which task kinds this
    * worker can execute (e.g. a research worker only claims research tasks).
    */
-  async claim(workerId: string, options: { kinds?: readonly TaskKind[] } = {}): Promise<ClaimedRun | null> {
+  async claim(workerId: string, options: WorkFilter = {}): Promise<ClaimedRun | null> {
     if (!/^[A-Za-z0-9_.:-]{1,64}$/.test(workerId)) throw new ServiceError("invalid-input", "Invalid worker id.");
     const now = this.now();
     return this.db.transaction(async (tx) => {
@@ -124,6 +146,7 @@ export class ExecutionQueue {
                   sql`, `,
                 )}))`
               : undefined,
+            workFilterSql(options, executionRuns.taskId),
           ),
         )
         .orderBy(asc(executionRuns.availableAt), asc(executionRuns.createdAt))

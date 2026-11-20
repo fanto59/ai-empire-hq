@@ -19,7 +19,7 @@ import { applyTransition, lockTask, type Actor, type RunRow, type TaskRow } from
 export interface CreateTaskInput {
   title: string;
   /** "research" → Research Agent worker; "executive" → Chief AI Manager worker. */
-  kind?: "general" | "research" | "executive";
+  kind?: "general" | "research" | "executive" | "business";
   description?: string;
   businessId: string | null;
   projectId?: string | null;
@@ -349,7 +349,7 @@ function validateCreate(input: CreateTaskInput) {
   dependsOn.forEach((d) => assertUuid(d, "dependsOn[]"));
   if (input.requiresApproval !== undefined && typeof input.requiresApproval !== "boolean") throw new ServiceError("invalid-input", "requiresApproval must be true or false.");
   const kind = input.kind ?? "general";
-  if (kind !== "general" && kind !== "research" && kind !== "executive") throw new ServiceError("invalid-input", "kind must be general, research or executive.");
+  if (kind !== "general" && kind !== "research" && kind !== "executive" && kind !== "business") throw new ServiceError("invalid-input", "kind must be general, research, executive or business.");
   if (kind === "executive") {
     if (businessId !== null) throw new ServiceError("invalid-input", "Executive objectives are headquarters tasks (businessId must be null).");
     if (description.trim().length < 10 || description.length > 4000) {
@@ -360,6 +360,12 @@ function validateCreate(input: CreateTaskInput) {
     if (businessId === null) throw new ServiceError("invalid-input", "Research tasks belong to a business.");
     if (description.trim().length < 10 || description.length > 2000) {
       throw new ServiceError("invalid-input", "A research task needs a question of 10-2,000 characters in its description.");
+    }
+  }
+  if (kind === "business") {
+    if (businessId === null) throw new ServiceError("invalid-input", "Business work belongs to a business.");
+    if (description.trim().length < 10 || description.length > 4000) {
+      throw new ServiceError("invalid-input", "Business work needs instructions of 10-4,000 characters in its description.");
     }
   }
   return {
