@@ -13,8 +13,8 @@ export interface AuditInput {
 }
 
 /** Appends one audit entry. The table is append-only (database trigger). */
-export async function writeAudit(db: Executor, e: AuditInput): Promise<void> {
-  await db.insert(auditLogs).values({
+export async function writeAudit(db: Executor, e: AuditInput): Promise<number> {
+  const [row] = await db.insert(auditLogs).values({
     organizationId: e.organizationId,
     businessId: e.businessId,
     actorKind: e.actor.kind,
@@ -24,5 +24,6 @@ export async function writeAudit(db: Executor, e: AuditInput): Promise<void> {
     targetId: e.targetId,
     metadata: e.metadata ?? {},
     occurredAt: e.at,
-  });
+  }).returning({ id: auditLogs.id });
+  return row!.id;
 }

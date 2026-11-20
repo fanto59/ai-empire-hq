@@ -382,8 +382,12 @@ export const budgets = pgTable(
     id: id(),
     organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     businessId: uuid("business_id").references(() => businesses.id, { onDelete: "cascade" }),
-    /** Sector budget (business_id NULL). Both NULL = organization budget. */
+    /** Sector budget (business_id NULL). All scope columns NULL = organization budget. */
     sectorId: uuid("sector_id").references(() => sectors.id, { onDelete: "cascade" }),
+    /** Per-agent budget (optional limit on one agent's spending). */
+    agentId: uuid("agent_id").references(() => agents.id, { onDelete: "cascade" }),
+    /** Per-provider budget (optional limit on spending with one provider: anthropic/openai/xai). */
+    provider: text("provider"),
     period: budgetPeriod("period").notNull().default("monthly"),
     periodStart: date("period_start").notNull(),
     currency: text("currency").notNull().default("USD"),
@@ -398,10 +402,15 @@ export const budgets = pgTable(
       t.organizationId,
       sql`coalesce(${t.businessId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
       sql`coalesce(${t.sectorId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      sql`coalesce(${t.agentId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      sql`coalesce(${t.provider}, '')`,
       t.period,
       t.periodStart,
     ),
-    check("budgets_one_scope_ck", sql`${t.businessId} is null or ${t.sectorId} is null`),
+    check(
+      "budgets_one_scope_ck",
+      sql`(case when ${t.businessId} is null then 0 else 1 end + case when ${t.sectorId} is null then 0 else 1 end + case when ${t.agentId} is null then 0 else 1 end + case when ${t.provider} is null then 0 else 1 end) <= 1`,
+    ),
     check("budgets_amounts_ck", sql`${t.limitMicros} >= 0 and ${t.spentMicros} >= 0`),
   ],
 );
@@ -447,3 +456,63 @@ export const apiTokens = pgTable("api_tokens", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+// ---- Executive control center ---------------------------------------------------------
+
+/** Organization-wide controls. `new_work_suspended` = emergency stop: no new runs start. */
+export const orgControls = pgTable("org_controls", {
+  organizationId: uuid("organization_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  newWorkSuspended: boolean("new_work_suspended").notNull().default(false),
+  reason: text("reason"),
+  changedBy: text("changed_by"),
+  changedAt: timestamp("changed_at", { withTimezone: true }),
+});
+
+export const proposalStatus = pgEnum("proposal_status", ["pending", "approved", "rejected", "expired", "executed", "canceled"]);
+
+/**
+ * Proposed sensitive actions. The exact action is stored (payload) with its
+ * canonical hash; approving issues a single-use, expiring token bound to that
+ * hash. Executing requires the token AND the identical payload.
+ */
+export const actionProposals = pgTable(
+  "action_proposals",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    summary: text("summary").notNull(),
+    payload: jsonb("payload").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    status: proposalStatus("status").notNull().default("pending"),
+    proposedByKind: actorKind("proposed_by_kind").notNull(),
+    proposedBy: text("proposed_by").notNull(),
+    /** A pending proposal can no longer be approved after this. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    decidedBy: text("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** sha256 of the approval token (the token itself is shown once, never stored). */
+    tokenHash: text("token_hash"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    executedBy: text("executed_by"),
+    executedAt: timestamp("executed_at", { withTimezone: true }),
+    result: text("result"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("action_proposals_org_status_idx").on(t.organizationId, t.status)],
+);
+
+/** Idempotency for control actions: a repeated key returns the first response, never applies twice. */
+export const controlRequests = pgTable(
+  "control_requests",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    action: text("action").notNull(),
+    actorId: text("actor_id").notNull(),
+    response: jsonb("response").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("control_requests_org_key_uq").on(t.organizationId, t.idempotencyKey)],
+);

@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { retryDelayMs } from "@/domain/task-lifecycle";
 import type { Db, Executor } from "@/infrastructure/db/client";
-import { executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { agents, executionRuns, orgControls, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { ServiceError } from "../errors";
 import { appendEvent } from "./events";
 import { applyTransition, lockTask, type Actor, type RunRow, type TaskRow } from "../tasks/engine";
@@ -112,6 +112,12 @@ export class ExecutionQueue {
           and(
             eq(executionRuns.status, "queued"),
             lte(executionRuns.availableAt, now),
+            // Control center: no new work while the organization is suspended
+            // (emergency stop) or while the assigned agent is paused.
+            sql`exists (select 1 from ${tasks} t left join ${agents} a on a.id = t.assignee_agent_id
+                  where t.id = ${executionRuns.taskId}
+                    and (a.id is null or a.status = 'active')
+                    and not exists (select 1 from ${orgControls} c where c.organization_id = t.organization_id and c.new_work_suspended))`,
             options.kinds
               ? sql`exists (select 1 from ${tasks} t where t.id = ${executionRuns.taskId} and t.kind in (${sql.join(
                   options.kinds.map((k) => sql`${k}`),

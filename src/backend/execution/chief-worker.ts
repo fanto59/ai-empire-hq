@@ -129,7 +129,7 @@ export class ChiefWorker {
             targetId: task.id,
             metadata: { tool: a.tool, allowed: a.allowed, detail: a.detail.slice(0, 200), runId: run.id },
             at: this.now(),
-          }),
+          }).then(() => undefined),
         saveContext: async (context) => {
           const messages = context as unknown as Record<string, unknown>;
           await db

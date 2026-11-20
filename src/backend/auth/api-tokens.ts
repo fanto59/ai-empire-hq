@@ -72,6 +72,7 @@ export async function authenticate(db: Db, authorization: string | null, now = n
     scopes.delete("approvals:decide");
     scopes.delete("models:admin"); // agents can never change model assignments
     scopes.delete("businesses:admin"); // nor add or archive businesses
+    for (const s of ["agents:operate", "budgets:admin", "emergency:operate"] as const) scopes.delete(s); // control center: people only
     // Business agents: their business. Sector agents: their sector's businesses. HQ agents: headquarters.
     const sectorBusinesses = agent.sectorId
       ? (await db.select({ id: businesses.id }).from(businesses).where(eq(businesses.sectorId, agent.sectorId))).map((b) => b.id)

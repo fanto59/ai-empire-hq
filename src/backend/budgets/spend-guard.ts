@@ -14,8 +14,9 @@ import { budgets, modelUsage } from "@/infrastructure/db/schema";
  * actual cost and a model_usage row is written. A crash between reserve and
  * settle leaves the worst case counted as spent (fail-safe).
  *
- * Sector budgets are optional: when the business's sector has a budget for
- * the month, it must have room too; without one, the sector adds no limit.
+ * Sector, per-agent and per-provider budgets are optional: when one exists
+ * for the month (for the business's sector, the calling agent, or the
+ * provider), it must have room too; without one, it adds no limit.
  *
  * A per-attempt cap (maxRunMicros) bounds a single task attempt as well.
  */
@@ -42,22 +43,34 @@ export function monthStart(now: Date): string {
   return `${now.toISOString().slice(0, 7)}-01`;
 }
 
-/** Budget scope: the organization, one sector, or one business. */
-export type BudgetScope = "organization" | { sectorId: string } | { businessId: string };
+/** Budget scope: the organization, one sector, one business, one agent, or one provider. */
+export type BudgetScope = "organization" | { sectorId: string } | { businessId: string } | { agentId: string } | { provider: string };
 
-/** Row filter for exactly one budget scope (an organization budget never matches a sector or business row). */
+/** Row filter for exactly one budget scope (scopes never match each other's rows). */
 export function budgetScopeFilter(organizationId: string, scope: BudgetScope, period: string) {
-  const business = scope !== "organization" && "businessId" in scope ? scope.businessId : null;
-  const sector = scope !== "organization" && "sectorId" in scope ? scope.sectorId : null;
+  const v = <K extends string>(k: K) => (scope !== "organization" && k in scope ? (scope as Record<K, string>)[k] : null);
+  const business = v("businessId");
+  const sector = v("sectorId");
+  const agent = v("agentId");
+  const provider = v("provider");
   return and(
     eq(budgets.organizationId, organizationId),
     business ? eq(budgets.businessId, business) : isNull(budgets.businessId),
     sector ? eq(budgets.sectorId, sector) : isNull(budgets.sectorId),
+    agent ? eq(budgets.agentId, agent) : isNull(budgets.agentId),
+    provider ? eq(budgets.provider, provider) : isNull(budgets.provider),
     eq(budgets.periodStart, period),
   );
 }
 
-const describe = (scope: BudgetScope) => (scope === "organization" ? "The organization" : "sectorId" in scope ? "This sector" : "This business");
+export function describeBudgetScope(scope: BudgetScope): string {
+  if (scope === "organization") return "The organization";
+  if ("sectorId" in scope) return "This sector";
+  if ("businessId" in scope) return "This business";
+  if ("agentId" in scope) return "This agent";
+  return `The ${scope.provider} provider`;
+}
+const describe = describeBudgetScope;
 
 export class SpendGuard {
   private readonly db: Db;
@@ -154,16 +167,17 @@ export class SpendGuard {
 
   /**
    * Budgets that apply: the organization always; the business for business
-   * work; the business's sector only when a sector budget exists this month.
+   * work; the sector, agent and provider budgets only when one exists this month.
    */
   private async budgetScopes(tx: Executor, period: string): Promise<BudgetScope[]> {
     const scopes: BudgetScope[] = ["organization"];
-    if (this.scope.sectorId) {
-      const [row] = await tx
-        .select({ id: budgets.id })
-        .from(budgets)
-        .where(budgetScopeFilter(this.scope.organizationId, { sectorId: this.scope.sectorId }, period));
-      if (row) scopes.push({ sectorId: this.scope.sectorId });
+    const optional: BudgetScope[] = [];
+    if (this.scope.sectorId) optional.push({ sectorId: this.scope.sectorId });
+    if (this.scope.agentId) optional.push({ agentId: this.scope.agentId });
+    if (this.scope.provider) optional.push({ provider: this.scope.provider });
+    for (const scope of optional) {
+      const [row] = await tx.select({ id: budgets.id }).from(budgets).where(budgetScopeFilter(this.scope.organizationId, scope, period));
+      if (row) scopes.push(scope);
     }
     if (this.scope.businessId) scopes.push({ businessId: this.scope.businessId });
     return scopes;

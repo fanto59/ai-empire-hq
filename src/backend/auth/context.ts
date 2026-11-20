@@ -3,7 +3,7 @@
  * token (src/backend/auth/api-tokens.ts) or, for server-rendered pages, from
  * the owner's context until interactive login exists.
  */
-export const API_SCOPES = ["tasks:read", "tasks:write", "tasks:transition", "approvals:decide", "models:admin", "businesses:admin"] as const;
+export const API_SCOPES = ["tasks:read", "tasks:write", "tasks:transition", "approvals:decide", "models:admin", "businesses:admin", "agents:operate", "budgets:admin", "emergency:operate"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];
 
 export interface RequestContext {

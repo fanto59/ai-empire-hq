@@ -43,6 +43,13 @@
       "when": 1795131841732,
       "tag": "0005_sectors",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795133144404,
+      "tag": "0006_control_center",
+      "breakpoints": true
     }
   ]
 }

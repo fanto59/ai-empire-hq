@@ -141,7 +141,7 @@ export class ResearchWorker {
               targetId: task.id,
               metadata: { tool: a.tool, allowed: a.allowed, detail: a.detail.slice(0, 200), runId: run.id },
               at: this.now(),
-            }),
+            }).then(() => undefined),
         },
       });
 

@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { planTransition, type TaskAction } from "@/domain/task-lifecycle";
 import type { Executor } from "@/infrastructure/db/client";
-import { agentPermissions, agents, approvalRequests, businesses, executionRuns, taskDependencies, tasks } from "@/infrastructure/db/schema";
+import { agentPermissions, agents, approvalRequests, businesses, executionRuns, orgControls, taskDependencies, tasks } from "@/infrastructure/db/schema";
 import { canAssignAgent } from "../org/rules";
 import { writeAudit } from "../audit";
 import { ServiceError } from "../errors";
@@ -75,6 +75,7 @@ export async function applyTransition(tx: Executor, task: TaskRow, input: Transi
       break;
     case "start": {
       await assertDependenciesComplete(tx, task.id);
+      await assertMayStart(tx, task);
       const attempt = task.attempt + 1;
       patch.attempt = attempt;
       patch.startedAt = task.startedAt ?? now;
@@ -224,6 +225,16 @@ async function assertAssignable(tx: Executor, task: TaskRow, agentId: string) {
       ),
     );
   if (grant.length === 0) throw new ServiceError("forbidden", "Agent lacks the task.execute permission for this scope.", "permission-missing");
+}
+
+/** Control center: emergency suspension and paused agents stop new work from starting. */
+async function assertMayStart(tx: Executor, task: TaskRow) {
+  const [control] = await tx.select({ s: orgControls.newWorkSuspended }).from(orgControls).where(eq(orgControls.organizationId, task.organizationId));
+  if (control?.s) throw new ServiceError("conflict", "New work is suspended for this organization (emergency stop).", "new-work-suspended");
+  if (task.assigneeAgentId) {
+    const [agent] = await tx.select({ status: agents.status, slug: agents.slug }).from(agents).where(eq(agents.id, task.assigneeAgentId));
+    if (agent && agent.status !== "active") throw new ServiceError("conflict", `Agent ${agent.slug} is ${agent.status === "disabled" ? "paused" : agent.status}.`, "agent-paused");
+  }
 }
 
 async function assertDependenciesComplete(tx: Executor, taskId: string) {
